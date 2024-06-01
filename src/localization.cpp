@@ -20,7 +20,7 @@ using std::placeholders::_1;
 Pose::Pose() :
     Node("pose_calculator"), count_(0)
 {
-    publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+    publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/loc", 10);
       timer_ = this->create_wall_timer(
       500ms, std::bind(&Pose::timer_callback, this));
 }

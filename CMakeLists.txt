@@ -13,19 +13,35 @@ find_package(rclcpp REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-add_executable(pose src/pose.cpp)
-ament_target_dependencies(pose
+add_executable(odometry src/odometry.cpp)
+add_executable(localization src/localization.cpp)
+ament_target_dependencies(odometry
 rclcpp
 nav_msgs)
 
-target_include_directories(pose PUBLIC
+ament_target_dependencies(localization
+rclcpp
+nav_msgs)
+
+target_include_directories(odometry PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(pose PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+
+target_include_directories(localization PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+target_compile_features(odometry PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+
+target_compile_features(localization PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 install(TARGETS
-pose
+odometry
   DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS
+localization
+    DESTINATION lib/${PROJECT_NAME})
 
 # Install Python executables
 install(PROGRAMS

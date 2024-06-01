@@ -10,11 +10,11 @@ using namespace std::chrono_literals;
 /* This example creates a subclass of Node and uses std::bind() to register a
 * member function as a callback from the timer. */
 
-class Pose : public rclcpp::Node
+class Odometry : public rclcpp::Node
 {
   public:
-    Pose();
-    ~Pose();
+    Odometry();
+    ~Odometry();
 
   private:
     void timer_callback();

@@ -17,17 +17,17 @@
 using std::placeholders::_1;
 
 //Constructor
-Pose::Pose() :
-    Node("pose_calculator"), count_(0)
+Odometry::Odometry() :
+    Node("Odometry_calculator"), count_(0)
 {
     publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
       timer_ = this->create_wall_timer(
-      500ms, std::bind(&Pose::timer_callback, this));
+      500ms, std::bind(&Odometry::timer_callback, this));
 }
 
-Pose::~Pose(){}
+Odometry::~Odometry(){}
 
-void Pose::timer_callback()
+void Odometry::timer_callback()
 {
     auto message = nav_msgs::msg::Odometry();
     message.child_frame_id = "odom";
@@ -40,7 +40,7 @@ void Pose::timer_callback()
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<Pose>();
+  auto node = std::make_shared<Odometry>();
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

@@ -15,11 +15,16 @@ find_package(rclcpp REQUIRED)
 
 add_executable(odometry src/odometry.cpp)
 add_executable(localization src/localization.cpp)
+add_executable(imu src/imu_interface.cpp)
 ament_target_dependencies(odometry
 rclcpp
 nav_msgs)
 
 ament_target_dependencies(localization
+rclcpp
+nav_msgs)
+
+ament_target_dependencies(imu
 rclcpp
 nav_msgs)
 
@@ -31,16 +36,20 @@ target_include_directories(localization PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
+target_include_directories(imu PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
 target_compile_features(odometry PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 target_compile_features(localization PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
-install(TARGETS
-odometry
-  DESTINATION lib/${PROJECT_NAME})
+target_compile_features(imu PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 install(TARGETS
 localization
+imu
+odometry
     DESTINATION lib/${PROJECT_NAME})
 
 # Install Python executables

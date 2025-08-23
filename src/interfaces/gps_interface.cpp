@@ -1,7 +1,6 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
-#include "tools_localization/gps_interface.hpp"
-//#include "nav_sim/AvoidObsCommon.h"
+#include "tools_localization/interfaces/gps_interface.hpp"
 #include <geometry_msgs/msg/point_stamped.h>
 #include <math.h>
 #include <boost/math/special_functions/round.hpp>

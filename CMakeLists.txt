@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.12)
 project(tools_localization)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -21,15 +21,18 @@ find_package(message_filters REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-add_executable(odometry src/odometry.cpp)
-add_executable(localization src/localization.cpp)
-add_executable(test_tf_tree src/test_tf_tree.cpp)
-add_executable(gps_interface src/gps_interface.cpp src/ublox_parser.cpp)
+#add_executable(odometry src/old/odometry.cpp)
+add_executable(localization
+        src/localization_node.cpp)
+#add_executable(test_tf_tree src/old/test_tf_tree.cpp)
+add_executable(gps_interface
+        src/interfaces/gps_interface.cpp
+        src/interfaces/ublox_parser.cpp)
 # add_executable(gps_test src/gps_test.cpp src/gps_interface.cpp src/ublox_parser.cpp)
 #add_executable(imu src/imu_interface.cpp)
-ament_target_dependencies(odometry
-rclcpp
-nav_msgs)
+#ament_target_dependencies(odometry
+#rclcpp
+#nav_msgs)
 
 ament_target_dependencies(localization
 rclcpp
@@ -42,17 +45,17 @@ builtin_interfaces
 nav_msgs
 sensor_msgs)
 
-ament_target_dependencies(test_tf_tree
-rclcpp
-tf2
-tf2_ros
-tf2_geometry_msgs
-tf2_sensor_msgs
-geometry_msgs
-builtin_interfaces
-nav_msgs
-message_filters
-sensor_msgs)
+#ament_target_dependencies(test_tf_tree
+#rclcpp
+#tf2
+#tf2_ros
+#tf2_geometry_msgs
+#tf2_sensor_msgs
+#geometry_msgs
+#builtin_interfaces
+#nav_msgs
+#message_filters
+#sensor_msgs)
 
 ament_target_dependencies(gps_interface
 rclcpp
@@ -68,18 +71,18 @@ sensor_msgs)
 #rclcpp
 #nav_msgs)
 
-target_include_directories(odometry PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+#target_include_directories(odometry PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>)
 
 target_include_directories(localization PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
-target_include_directories(test_tf_tree PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-
+#target_include_directories(test_tf_tree PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#  $<INSTALL_INTERFACE:include>)
+#
 target_include_directories(gps_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
@@ -92,10 +95,10 @@ target_include_directories(gps_interface PUBLIC
 #  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 #  $<INSTALL_INTERFACE:include>)
 
-target_compile_features(odometry PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+#target_compile_features(odometry PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 target_compile_features(localization PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
-target_compile_features(test_tf_tree PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+#target_compile_features(test_tf_tree PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 target_compile_features(gps_interface PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 # target_compile_features(gps_test PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
@@ -105,9 +108,9 @@ install(TARGETS
 localization
 #imu
 # gps_test
-test_tf_tree
+#test_tf_tree
 gps_interface
-odometry
+#odometry
     DESTINATION lib/${PROJECT_NAME})
 
 # Install Python executables

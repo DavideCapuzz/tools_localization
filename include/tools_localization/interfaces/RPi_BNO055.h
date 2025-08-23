@@ -20,7 +20,7 @@
 #ifndef __ADAFRUIT_BNO055_H__
 #define __ADAFRUIT_BNO055_H__
 
-#include "RPi_Sensor.h"
+#include "../RPi_Sensor.h"
 #include </utility/imumaths.h>
 
 #define BNO055_ADDRESS_A (0x28)

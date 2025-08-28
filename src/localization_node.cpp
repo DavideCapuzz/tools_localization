@@ -20,7 +20,7 @@
 using std::placeholders::_1;
 
 // Constructor
-LocalizationNode::LocalizationNode() : Node("LocalizationNode"), count_(0)
+LocalizationNode::LocalizationNode() : Node("LocalizationNode"), count_(0), ukf_("/home/davide/ros_ws/wheele/src/tools_localization/config/config.json")
 {
   sub_loc_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
       "/navsat", 10, std::bind(&LocalizationNode::GpsCallBack, this, _1));
@@ -56,9 +56,8 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode"), count_(0)
 
     initial_state = 1e-3 * Eigen::Matrix<double, N, 1>::Ones();
 
-    estimator = std::make_unique<UKF>(config_file_path);
-    estimator->initialize(initial_state, initial_covariance);
-    estimator->start_filter();
+
+    ukf_.initialize(initial_state, initial_covariance);
 }
 
 LocalizationNode::~LocalizationNode() {}
@@ -66,7 +65,7 @@ LocalizationNode::~LocalizationNode() {}
 void LocalizationNode::timer_callback()
 {
 
-    // auto [transform, odom] = filter_.update(twist_, last_clock_time_);
+    auto state = ukf_.get_state();
     // tfB_->sendTransform(transform);
     // publisher_odom_->publish(odom);
 }
@@ -83,10 +82,12 @@ void LocalizationNode::clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr 
 
 void LocalizationNode::ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in){
   imu_pose_ = *msg_in;
+    ukf_.read_imu({});
 }
 
 void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in){
   gps_ = *msg_in;
+     ukf_.read_gps({});
 }
 
 void LocalizationNode::SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in)

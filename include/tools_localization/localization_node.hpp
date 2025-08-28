@@ -71,5 +71,5 @@ class LocalizationNode : public rclcpp::Node
     double k_speed_{1};
     double dt_{0.1};
 
-  std::unique_ptr<Estimator> estimator;
+  UKF ukf_ ;
 };

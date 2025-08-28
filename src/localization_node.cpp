@@ -100,10 +100,17 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
     if (!gps_init_) {
         converter_.initialiseReference(gps_.latitude, gps_.longitude, gps_.altitude);
         gps_init_ = true;
+        static_cast<double>(imu_pose_.header.stamp.sec);
     }
     double east, north, up;
     converter_.geodetic2Enu(gps_.latitude, gps_.longitude, gps_.altitude, &east, &north, &up);
-    ukf_.read_gps({});
+
+    Eigen::Matrix<double, Z, 1> MeasVec ;
+    Eigen::Matrix<double, Z, Z> MeasCov;
+    ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
+        MeasVec,
+        MeasCov
+    });
 }
 
 void LocalizationNode::SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in)

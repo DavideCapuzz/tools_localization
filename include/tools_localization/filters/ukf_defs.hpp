@@ -27,6 +27,13 @@ using SigmaPointArray = std::array<StateVec, NumSigma>;
 
 struct Observable {
     Observable(){};
+    Observable(double timestamp,
+    MeasVec observation,
+    MeasCov R):
+    timestamp(timestamp),
+    observation(observation),
+    R(R)
+    {};
 
     double timestamp;
     MeasVec observation;

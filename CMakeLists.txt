@@ -23,7 +23,10 @@ find_package(message_filters REQUIRED)
 
 #add_executable(odometry src/old/odometry.cpp)
 add_executable(localization
-        src/localization_node.cpp)
+        src/localization_node.cpp
+        src/filters/IMU.cpp
+        src/filters/UKF.cpp
+)
 #add_executable(test_tf_tree src/old/test_tf_tree.cpp)
 add_executable(gps_interface
         src/interfaces/gps_interface.cpp
@@ -33,7 +36,6 @@ add_executable(gps_interface
 #ament_target_dependencies(odometry
 #rclcpp
 #nav_msgs)
-
 ament_target_dependencies(localization
 rclcpp
 tf2
@@ -76,8 +78,13 @@ sensor_msgs)
 #  $<INSTALL_INTERFACE:include>)
 
 target_include_directories(localization PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/tools_localization/libraries/kalman/include>
+        $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:include/tools_localization/libraries/kalman/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/tools_localization/libraries>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/tools_localization/filters>
+)
 
 #target_include_directories(test_tf_tree PUBLIC
 #  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

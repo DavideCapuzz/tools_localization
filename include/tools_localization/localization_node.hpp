@@ -25,7 +25,7 @@
 #include "tf2_ros/transform_broadcaster.h"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 
-#include "tools_localization/filters/basicfilter.hpp"
+#include "tools_localization/filters/UKF.hpp"
 using namespace std::chrono_literals;
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -60,8 +60,6 @@ class LocalizationNode : public rclcpp::Node
     sensor_msgs::msg::NavSatFix gps_;
     geometry_msgs::msg::Twist twist_;
 
-    BasiFilter filter_;
-
     bool pose_received_{false};
     size_t count_;
     int32_t sec_;
@@ -72,4 +70,6 @@ class LocalizationNode : public rclcpp::Node
     double k_theta_{1};
     double k_speed_{1};
     double dt_{0.1};
+
+  std::unique_ptr<Estimator> estimator;
 };

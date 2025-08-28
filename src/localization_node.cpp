@@ -38,6 +38,27 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode"), count_(0)
   publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
   timer_ = this->create_wall_timer(
       100ms, std::bind(&LocalizationNode::timer_callback, this));
+
+
+    std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+
+    // make a dummy state
+    StateVec initial_state;
+    CovMat initial_covariance;
+
+    initial_covariance.setZero();
+    initial_covariance.diagonal() <<
+    0.5, 0.5, 0.5,   // positions
+    0.1, 0.1, 0.1,   // velocities
+    0.25, 0.25, 0.25, // attitude angles
+    1e-4, 1e-4, 1e-4,   // accelerometer biases
+    1e-4, 1e-4, 1e-4;   // gyro biases
+
+    initial_state = 1e-3 * Eigen::Matrix<double, N, 1>::Ones();
+
+    estimator = std::make_unique<UKF>(config_file_path);
+    estimator->initialize(initial_state, initial_covariance);
+    estimator->start_filter();
 }
 
 LocalizationNode::~LocalizationNode() {}
@@ -45,9 +66,9 @@ LocalizationNode::~LocalizationNode() {}
 void LocalizationNode::timer_callback()
 {
 
-    auto [transform, odom] = filter_.update(twist_, last_clock_time_);
-    tfB_->sendTransform(transform);
-    publisher_odom_->publish(odom);
+    // auto [transform, odom] = filter_.update(twist_, last_clock_time_);
+    // tfB_->sendTransform(transform);
+    // publisher_odom_->publish(odom);
 }
 
 void LocalizationNode::TwistCallBack(const geometry_msgs::msg::Twist::SharedPtr msg_in)

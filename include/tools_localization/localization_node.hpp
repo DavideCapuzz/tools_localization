@@ -61,15 +61,41 @@ class LocalizationNode : public rclcpp::Node
     geometry_msgs::msg::Twist twist_;
 
     bool pose_received_{false};
-    size_t count_;
-    int32_t sec_;
-    uint32_t nanosec_;
-    double x_{0.};
-    double y_{0.};
-    double theta_{0.};
-    double k_theta_{1};
-    double k_speed_{1};
-    double dt_{0.1};
-
   UKF ukf_ ;
+
+  std::tuple<geometry_msgs::msg::TransformStamped, nav_msgs::msg::Odometry> set_oputout(
+  double x,double y,double theta,
+rclcpp::Time last_clock_time){
+
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp.sec = last_clock_time.seconds();
+    transform.header.stamp.nanosec = last_clock_time.nanoseconds();
+    transform.header.frame_id = "odom";
+    transform.child_frame_id = "base_link";
+
+    transform.transform.translation.x = x;
+    transform.transform.translation.y = y;
+    transform.transform.translation.z = 0;
+
+    transform.transform.rotation.x = 0;
+    transform.transform.rotation.y = 0;
+    transform.transform.rotation.z = theta;
+    transform.transform.rotation.w = 1;
+    auto odom = nav_msgs::msg::Odometry();
+    odom.header.stamp.sec = last_clock_time.seconds();
+    odom.header.stamp.nanosec = last_clock_time.nanoseconds();
+    odom.header.frame_id = "odom";
+    odom.child_frame_id = "base_link";
+    // Set position
+    odom.pose.pose.position.x = x;
+    odom.pose.pose.position.y = y;
+    odom.pose.pose.position.z = 0.0;
+
+    odom.pose.pose.orientation.x = 0;
+    odom.pose.pose.orientation.y = 0;
+    odom.pose.pose.orientation.z = theta;
+    odom.pose.pose.orientation.w = 1;
+
+    return std::make_tuple(transform, odom);
+  };
 };

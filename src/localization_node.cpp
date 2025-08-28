@@ -20,7 +20,7 @@
 using std::placeholders::_1;
 
 // Constructor
-LocalizationNode::LocalizationNode() : Node("LocalizationNode"), count_(0), ukf_("/home/davide/ros_ws/wheele/src/tools_localization/config/config.json")
+LocalizationNode::LocalizationNode() : Node("LocalizationNode"), ukf_("/home/davide/ros_ws/wheele/src/tools_localization/config/config.json")
 {
   sub_loc_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
       "/navsat", 10, std::bind(&LocalizationNode::GpsCallBack, this, _1));
@@ -66,8 +66,9 @@ void LocalizationNode::timer_callback()
 {
 
     auto state = ukf_.get_state();
-    // tfB_->sendTransform(transform);
-    // publisher_odom_->publish(odom);
+    auto [transform, odom] = set_oputout(state[0],state[1],state[2],last_clock_time_);
+    tfB_->sendTransform(transform);
+    publisher_odom_->publish(odom);
 }
 
 void LocalizationNode::TwistCallBack(const geometry_msgs::msg::Twist::SharedPtr msg_in)

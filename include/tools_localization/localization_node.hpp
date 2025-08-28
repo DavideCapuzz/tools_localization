@@ -26,6 +26,7 @@
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 
 #include "tools_localization/filters/UKF.hpp"
+#include "geodetic_utils/geodetic_conv.hpp"
 using namespace std::chrono_literals;
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -62,7 +63,8 @@ class LocalizationNode : public rclcpp::Node
 
     bool pose_received_{false};
   UKF ukf_ ;
-
+  geodetic_converter::GeodeticConverter converter_;
+bool gps_init_{false};
   std::tuple<geometry_msgs::msg::TransformStamped, nav_msgs::msg::Odometry> set_oputout(
   double x,double y,double theta,
 rclcpp::Time last_clock_time){

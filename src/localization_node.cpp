@@ -83,12 +83,27 @@ void LocalizationNode::clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr 
 
 void LocalizationNode::ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in){
   imu_pose_ = *msg_in;
-    ukf_.read_imu({});
+    ukf_.read_imu({
+        imu_pose_.linear_acceleration.x,
+        imu_pose_.linear_acceleration.y,
+        imu_pose_.linear_acceleration.z,
+        imu_pose_.angular_velocity.x,
+        imu_pose_.angular_velocity.y,
+        imu_pose_.angular_velocity.z,
+        static_cast<double>(imu_pose_.header.stamp.sec)
+    });
 }
 
 void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in){
   gps_ = *msg_in;
-     ukf_.read_gps({});
+
+    if (!gps_init_) {
+        converter_.initialiseReference(gps_.latitude, gps_.longitude, gps_.altitude);
+        gps_init_ = true;
+    }
+    double east, north, up;
+    converter_.geodetic2Enu(gps_.latitude, gps_.longitude, gps_.altitude, &east, &north, &up);
+    ukf_.read_gps({});
 }
 
 void LocalizationNode::SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in)

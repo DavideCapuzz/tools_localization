@@ -66,6 +66,8 @@ UKF::UKF(double alpha, double beta, double kappa, UKFParams params):
     _Q *= 1e-3;
 }
 
+UKF::UKF() {}
+
 UKF::UKF(const std::string& configs_path) {
     // read in configurables
     // load in the system configurations
@@ -76,18 +78,6 @@ UKF::UKF(const std::string& configs_path) {
 
     // allocate the measurement file path and read in UKF params
     read_configs(inFile);
-
-    // find ground truth file to compare
-    // _ground_truth_path = get_ground_truth(_measurement_file_path);
-
-    // setup measurement handler
-    // _measurement_handler = std::make_unique<MeasurementHandler>(configs_path);
-
-    // create a logger instance for diagnostics
-    // diag_logger = std::make_shared<Logger>(formatLogName("logs/UKF_diag_log", ".bin"));
-
-    // ground truth getter
-    // _ext_measuremment_handler = std::make_unique<TruthHandler>(diag_logger);
 
     // calculate scaling params
     double lambda_raw = _alpha * _alpha * (N + _kappa) - N;
@@ -104,8 +94,34 @@ UKF::UKF(const std::string& configs_path) {
     // TMP PROCESS NOISE
     _Q.setIdentity();
     _Q *= 1e-3;
+}
 
-    ukf_log() << "[UKF] _lambda = " << _lambda << ", _gamma = " << _gamma << "\n";
+void UKF::init(const std::string& configs_path) {
+    // read in configurables
+    // load in the system configurations
+    std::ifstream inFile(configs_path);
+    if (!inFile.is_open()) {
+        std::cerr << "Could not open config file: " << configs_path << std::endl;
+    }
+
+    // allocate the measurement file path and read in UKF params
+    read_configs(inFile);
+
+    // calculate scaling params
+    double lambda_raw = _alpha * _alpha * (N + _kappa) - N;
+    _lambda = std::max(lambda_raw, -0.95 * N);
+    _gamma = std::sqrt(N + _lambda);
+
+    // weights for sigma point mean and covariance
+    _Wm.setConstant(0.5 / (N + _lambda));
+    _Wc = _Wm; // copy
+
+    _Wm(0) = _lambda / (N + _lambda);
+    _Wc(0) = _Wm(0) + (1 - pow(_alpha, 2) + _beta);
+
+    // TMP PROCESS NOISE
+    _Q.setIdentity();
+    _Q *= 1e-3;
 }
 
 void UKF::start_filter() {}

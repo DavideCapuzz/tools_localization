@@ -25,7 +25,7 @@
 #include "tf2_ros/transform_broadcaster.h"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 
-#include "tools_localization/filters/UKF.hpp"
+#include "../../libs/UKF/include/UKF.hpp"
 #include "geodetic_utils/geodetic_conv.hpp"
 using namespace std::chrono_literals;
 
@@ -64,7 +64,10 @@ class LocalizationNode : public rclcpp::Node
     bool pose_received_{false};
   UKF ukf_ ;
   geodetic_converter::GeodeticConverter converter_;
-bool gps_init_{false};
+  bool gps_init_{false};
+
+  double north_{0.0}, east_{0.0}, up_{0.0}, sec_{0.0};
+
   std::tuple<geometry_msgs::msg::TransformStamped, nav_msgs::msg::Odometry> set_oputout(
   double x,double y,double theta,
 rclcpp::Time last_clock_time){

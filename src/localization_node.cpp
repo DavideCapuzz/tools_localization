@@ -20,7 +20,7 @@
 using std::placeholders::_1;
 
 // Constructor
-LocalizationNode::LocalizationNode() : Node("LocalizationNode"), ukf_("/home/davide/ros_ws/wheele/src/tools_localization/config/config.json")
+LocalizationNode::LocalizationNode() : Node("LocalizationNode")
 {
   sub_loc_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
       "/navsat", 10, std::bind(&LocalizationNode::GpsCallBack, this, _1));
@@ -40,8 +40,9 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode"), ukf_("/home/dav
       100ms, std::bind(&LocalizationNode::timer_callback, this));
 
 
-    std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
-
+    std::string config_file_path = this->get_parameter("config_path").as_string();
+    // std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+    ukf_.init(config_file_path);
     // make a dummy state
     StateVec initial_state;
     CovMat initial_covariance;
@@ -56,7 +57,6 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode"), ukf_("/home/dav
 
     initial_state = 1e-3 * Eigen::Matrix<double, N, 1>::Ones();
 
-
     ukf_.initialize(initial_state, initial_covariance);
 }
 
@@ -64,7 +64,6 @@ LocalizationNode::~LocalizationNode() {}
 
 void LocalizationNode::timer_callback()
 {
-
     auto state = ukf_.get_state();
     auto [transform, odom] = set_oputout(state[0],state[1],state[2],last_clock_time_);
     tfB_->sendTransform(transform);
@@ -96,16 +95,22 @@ void LocalizationNode::ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in
 
 void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in){
   gps_ = *msg_in;
-
+    double sec = gps_.header.stamp.sec + gps_.header.stamp.nanosec;
     if (!gps_init_) {
         converter_.initialiseReference(gps_.latitude, gps_.longitude, gps_.altitude);
         gps_init_ = true;
-        static_cast<double>(imu_pose_.header.stamp.sec);
     }
     double east, north, up;
     converter_.geodetic2Enu(gps_.latitude, gps_.longitude, gps_.altitude, &east, &north, &up);
-
+    double dn = (north - north_)/(sec - sec_);
+    double de = (east - east_)/(sec - sec_);
+    double du = (up - up_)/(sec - sec_);
+    north_ = north;
+    east_ = east;
+    up_ = up;
+    sec_ = sec;
     Eigen::Matrix<double, Z, 1> MeasVec;
+    MeasVec << east, north, up, de, dn, du;
     Eigen::Matrix<double, Z, Z> MeasCov;
     ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
         MeasVec,

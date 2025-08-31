@@ -19,6 +19,9 @@ public:
 
     // alternate constructor for sim mode
     UKF(const std::string& configs_path);
+    UKF();
+
+    void init(const std::string& configs_path);
 
     // sets params for system and gets measurement file path
     void read_configs(std::ifstream& inFile);

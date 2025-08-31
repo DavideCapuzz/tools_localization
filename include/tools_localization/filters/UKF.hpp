@@ -1,15 +1,14 @@
 #pragma once
 
-#include "estimator_interface.hpp"
-#include "ukf_defs.hpp"
-
 #include <cstdint>
 #include <Eigen/Dense>
-#include <memory>
 #include <string>
 
+#include "estimator_interface.hpp"
+#include "ukf_defs.hpp"
 #include "IMU_Matrices.hpp"
-#include "safe_cholesky.hpp"
+#include "thread_safe_queue.hpp"
+
 // using N and M for adaptive sizing depending on model without heap allocations
 class UKF : public Estimator {
 public:
@@ -66,6 +65,16 @@ private:
     std::string _measurement_file_path;
     std::string _ground_truth_path;
     double _solution_time;  // last solution time
+
+    // queues for holding incoming measurements
+    std::unique_ptr<ThreadQueue<ControlInput>> _imu_queue;
+    std::unique_ptr<ThreadQueue<Observable>> _gnss_queue;
+
+    // trackers for syncing imu and GNSS solutions'
+    bool _imu_available;
+    bool _gnss_available;
+    double _last_imu_time;
+    double _last_gnss_time;
 
     void generate_sigma_points(const StateVec& mu, const CovMat& P, SigmaPointArray& sigma_points);
 };

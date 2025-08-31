@@ -23,6 +23,14 @@
   <depend>nav2_msgs</depend>
   <depend>can_msgs</depend>
 
+  <!-- linear algebra (Eigen) -->
+  <build_depend>eigen3_cmake_module</build_depend>
+  <exec_depend>eigen</exec_depend>
+
+  <!-- JSON (nlohmann/json) -->
+  <build_depend>nlohmann-json3-dev</build_depend>
+  <exec_depend>nlohmann-json3-dev</exec_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>

@@ -1,11 +1,9 @@
 #include <iostream>
 #include <fstream>
-#include <memory>
 #include <nlohmann/json.hpp>
-#include <thread>
 
 #include "UKF.hpp"
-
+#include "safe_cholesky.hpp"
 
 using json = nlohmann::json;
 
@@ -66,7 +64,12 @@ UKF::UKF(double alpha, double beta, double kappa, UKFParams params):
     _Q *= 1e-3;
 }
 
-UKF::UKF(const std::string& configs_path) {
+UKF::UKF(const std::string& configs_path): 
+    _imu_available(false), 
+    _gnss_available(false), 
+    _last_imu_time(0), 
+    _last_gnss_time(0) 
+{
     // read in configurables
     // load in the system configurations
     std::ifstream inFile(configs_path);
@@ -76,18 +79,6 @@ UKF::UKF(const std::string& configs_path) {
 
     // allocate the measurement file path and read in UKF params
     read_configs(inFile);
-
-    // find ground truth file to compare
-    // _ground_truth_path = get_ground_truth(_measurement_file_path);
-
-    // setup measurement handler
-    // _measurement_handler = std::make_unique<MeasurementHandler>(configs_path);
-
-    // create a logger instance for diagnostics
-    // diag_logger = std::make_shared<Logger>(formatLogName("logs/UKF_diag_log", ".bin"));
-
-    // ground truth getter
-    // _ext_measuremment_handler = std::make_unique<TruthHandler>(diag_logger);
 
     // calculate scaling params
     double lambda_raw = _alpha * _alpha * (N + _kappa) - N;
@@ -106,12 +97,23 @@ UKF::UKF(const std::string& configs_path) {
     _Q *= 1e-3;
 
     ukf_log() << "[UKF] _lambda = " << _lambda << ", _gamma = " << _gamma << "\n";
+
+    // create the queues for holding incoming measurements
+    _imu_queue = std::make_unique<ThreadQueue<ControlInput>>(1000);
+    _gnss_queue = std::make_unique<ThreadQueue<Observable>>(1000);
 }
 
 void UKF::start_filter() {}
 
 void UKF::read_imu(ImuData imu_measurement) {
     ControlInput imu_reading = imu_measurement.matrix_form_measurement;
+
+    // signal to the filter that we're ready to process IMU data
+    _imu_available = true;
+    _imu_queue->push(imu_reading);
+
+    // of we have a GNSS measurement available, we can start an update
+
     double dt = abs(_solution_time - imu_measurement.measurement_time);
     predict(imu_reading, dt);
 
@@ -119,7 +121,11 @@ void UKF::read_imu(ImuData imu_measurement) {
 }
 
 void UKF::read_gps(Observable observable_measurement) {
-    update(observable_measurement.observation, observable_measurement.R);
+    // signal to the filter that we're ready to process GNSS data
+    _gnss_available = true;
+    _gnss_queue->push(observable_measurement);
+
+    // update(observable_measurement.observation, observable_measurement.R);
 
     _solution_time = observable_measurement.timestamp;
 }
@@ -207,11 +213,6 @@ void UKF::predict(
     _x = mu_pred;
     _P = P_pred;
     _sigma_points = propagated_sigmas;
-
-    // std::cout << "TMP: state is\n" << _x.transpose() << "\n\n" <<std::endl;
-
-    // log out the new, calculated state
-    // log_vector_out(*diag_logger, _x, LoggedVectorType::NominalState);
 }
 
 void UKF::update(const MeasVec& z, const MeasCov& R) {
@@ -227,12 +228,8 @@ void UKF::update(const MeasVec& z, const MeasCov& R) {
         z_pred += _Wm[i] * z_sigma[i];
     }
 
-    // this was our estimated measurement from the sigma points
-    // log_vector_out(*diag_logger, z_pred, LoggedVectorType::EstimatedMeasurement);
-
     // log resudial in this prediction
     Eigen::Matrix<double, Z, 1> residual = z - z_pred;
-    // log_vector_out(*diag_logger, residual, LoggedVectorType::MeasurementResidual);
 
     // innovation covariance and cross-covariance
     MeasCov S = R;
@@ -250,7 +247,4 @@ void UKF::update(const MeasVec& z, const MeasCov& R) {
     // state update
     _x += K * (z - z_pred);
     _P -= K * S * K.transpose();
-
-    // measurement updated state
-    // log_vector_out(*diag_logger, _x, LoggedVectorType::NominalState);
 }

@@ -105,7 +105,7 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
     double east, north, up;
     converter_.geodetic2Enu(gps_.latitude, gps_.longitude, gps_.altitude, &east, &north, &up);
 
-    Eigen::Matrix<double, Z, 1> MeasVec ;
+    Eigen::Matrix<double, Z, 1> MeasVec;
     Eigen::Matrix<double, Z, Z> MeasCov;
     ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
         MeasVec,

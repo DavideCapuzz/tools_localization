@@ -144,7 +144,7 @@ void UKF::worker_loop(std::chrono::milliseconds period) {
 
     auto record_snapshot = [&](double t_now, const ControlInput& u) {
         // snapshot current state; assumes _x/_P are UKF’s current posterior after predict/update
-        hist.push_back(Snapshot{t_now, _x, _P, u});
+        hist.push_back(Snapshot{_x, _P, u, t_now});
     };
 
     auto process_imu = [&](const ImuData& m){

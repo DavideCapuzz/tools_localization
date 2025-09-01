@@ -1,8 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 #include "UKF.hpp"
+#include "IMU_Matrices.hpp"
 #include "safe_cholesky.hpp"
 
 using json = nlohmann::json;
@@ -42,33 +44,10 @@ void UKF::read_configs(std::ifstream& inFile) {
     _params = hold_config;  // assign configurations
 }
 
-UKF::UKF(double alpha, double beta, double kappa, UKFParams params):
-    _params(params),
-    _alpha(alpha),
-    _beta(beta),
-    _kappa(kappa) {
 
-    // calculate scaling params
-    _lambda = pow(_alpha, 2) * (N + _kappa) - N;
-    _gamma = pow(N + _lambda, 0.5);
+UKF::UKF() {}
 
-    // weights for sigma point mean and covariance
-    _Wm.setConstant(0.5 / (N + _lambda));
-    _Wc = _Wm; // copy
-
-    _Wm(0) = _lambda / (N + _lambda);
-    _Wc(0) = _Wm(0) + (1 - pow(_alpha, 2) + _beta);
-
-    // TMP PROCESS NOISE
-    _Q.setIdentity();
-    _Q *= 1e-3;
-}
-
-UKF::UKF(const std::string& configs_path): 
-    _imu_available(false), 
-    _gnss_available(false), 
-    _last_imu_time(0), 
-    _last_gnss_time(0) 
+void UKF::configure(const std::string& configs_path) 
 {
     // read in configurables
     // load in the system configurations
@@ -99,36 +78,221 @@ UKF::UKF(const std::string& configs_path):
     ukf_log() << "[UKF] _lambda = " << _lambda << ", _gamma = " << _gamma << "\n";
 
     // create the queues for holding incoming measurements
-    _imu_queue = std::make_unique<ThreadQueue<ControlInput>>(1000);
+    _imu_queue = std::make_unique<ThreadQueue<ImuData>>(1000);
     _gnss_queue = std::make_unique<ThreadQueue<Observable>>(1000);
+
+    // retrodiction queue sizing
+    hist.set_capacity(hist_cap);
 }
 
-void UKF::start_filter() {}
+void UKF::start_filter(std::chrono::milliseconds period) {
+    if (worker_.joinable()) return; // already running
+    stop_flag_.store(false, std::memory_order_relaxed);
+    worker_ = std::thread(&UKF::worker_loop, this, period);
+}
+
+void UKF::stop_filter() {
+    if (!worker_.joinable()) return;
+    stop_flag_.store(true, std::memory_order_relaxed);
+    cv_.notify_all(); // wake the worker if it's waiting
+    worker_.join();
+}
 
 void UKF::read_imu(ImuData imu_measurement) {
-    ControlInput imu_reading = imu_measurement.matrix_form_measurement;
-
-    // signal to the filter that we're ready to process IMU data
-    _imu_available = true;
-    _imu_queue->push(imu_reading);
-
-    // of we have a GNSS measurement available, we can start an update
-
-    double dt = abs(_solution_time - imu_measurement.measurement_time);
-    predict(imu_reading, dt);
-
-    _solution_time = imu_measurement.measurement_time;  // update solution time
+    // wake the worker quickly when new data arrives
+    _imu_queue->push(imu_measurement);
+    cv_.notify_one();
 }
 
 void UKF::read_gps(Observable observable_measurement) {
     // signal to the filter that we're ready to process GNSS data
-    _gnss_available = true;
     _gnss_queue->push(observable_measurement);
-
-    // update(observable_measurement.observation, observable_measurement.R);
-
-    _solution_time = observable_measurement.timestamp;
+    cv_.notify_one();
 }
+
+void UKF::worker_loop(std::chrono::milliseconds period) {
+    /**
+     * Here, we manage time-alignment between the solutions from coasting INS and incoming GNSS measurements.
+     * The logic is as follows:
+     * 1. Check all queues for the oldest available measurement
+     * 2. If it's an IMU measurement, add it to a sub queue
+     * 3. If it's a GNSS measurement, process all IMU measurements up to that time, propagate to GNSS time, then do a measurement update
+     * 4. If too much time has passed without a GNSS measurement, just process all IMU measurements in the queue
+     * 5. Repeat
+     */
+    using clock = std::chrono::steady_clock;
+    auto next_wake = clock::now() + period;
+    constexpr double TIME_EPS = 1e-6;
+
+    std::optional<ImuData> imu_next;
+    std::optional<Observable> gnss_next;
+
+    auto safe_dt = [](double t_now, double t_prev) {
+        double dt = t_now - t_prev;
+        if (dt < 1e-6) dt = 1e-6;       // avoid zero/negative
+        return dt;
+    };
+
+    // --- small helper: find last snapshot with t <= tz (reverse scan; hist is short) ---
+    auto find_last_leq = [&](double tz) -> int {
+        if (hist.empty()) return -1;
+        for (int i = static_cast<int>(hist.size()) - 1; i >= 0; --i) {
+            if (hist.at(static_cast<size_t>(i)).t <= tz) return i;
+        }
+        return -1;
+    };
+
+    auto record_snapshot = [&](double t_now, const ControlInput& u) {
+        // snapshot current state; assumes _x/_P are UKF’s current posterior after predict/update
+        hist.push_back(Snapshot{t_now, _x, _P, u});
+    };
+
+    auto process_imu = [&](const ImuData& m){
+        if (!_initialized_time) {
+            _solution_time = m.measurement_time;
+            _initialized_time = true;
+        }
+        const double dt = safe_dt(m.measurement_time, _solution_time);
+        predict(m.matrix_form_measurement, dt);
+        _solution_time = m.measurement_time;
+        record_snapshot(_solution_time, m.matrix_form_measurement);
+    };
+
+    auto process_gnss = [&](const Observable& z){
+        // if the GNSS time is within our history window, do rollback + replay.
+        // (by construction of gnss_is_next, hist is non-empty and front.t <= z.t <= back.t)
+        if (z.timestamp <= hist.back().t + TIME_EPS) {
+            const int k = find_last_leq(z.timestamp );
+            if (k >= 0) {
+                // rollback to snapshot k
+                _x = hist.at(static_cast<size_t>(k)).x;
+                _P = hist.at(static_cast<size_t>(k)).P;
+                double t = hist.at(static_cast<size_t>(k)).t;
+
+                // propagate exactly to GNSS time (ZOH with the next step’s control)
+                if (z.timestamp > t + TIME_EPS) {
+                    // k+1 must exist if tz < hist.back().t
+                    ControlInput u = hist.at(static_cast<size_t>(k + 1)).u_from_prev;
+                    const double dt = safe_dt(z.timestamp, t);
+                    predict(u, dt);
+                    t = z.timestamp;
+                }
+
+                // update at GNSS time
+                update(z.observation, z.R);
+
+                // replay snapshots k+1..end, overwriting their posteriors
+                double t_cur = z.timestamp;  // we've just updated at t_z
+                for (size_t i = static_cast<size_t>(k + 1); i < hist.size(); ++i) {
+                    const double dt_step = std::max(1e-6, hist.at(i).t - t_cur);
+                    predict(hist.at(i).u_from_prev, dt_step);
+                    t_cur = hist.at(i).t;
+                    hist.at(i).x = _x;
+                    hist.at(i).P = _P;
+                }
+
+                // bring _solution_time to the tip
+                _solution_time = hist.back().t;
+                return; // done
+            }
+            // if tz < hist.front().t, we fall through to “forward-only” handling below.
+        }
+
+        // we should never reach here since we've required a valid solution history that surrounds
+        // the GNSS measurement
+        assert(false && "process_gnss: reached forward-only path unexpectedly");
+        return;
+    };
+
+    for (;;) {
+        // fill holds if empty (non-blocking)
+        if (!imu_next) {
+            ImuData m;
+            if (_imu_queue->try_pop(m)) imu_next = std::move(m);
+        }
+        if (!gnss_next) {
+            Observable g;
+            if (_gnss_queue->try_pop(g)) gnss_next = std::move(g);
+        }
+
+        // nothing to do = wait
+        if (!imu_next && !gnss_next) {
+            // ensure we're still supposed to be running
+            if (stop_flag_.load(std::memory_order_relaxed)) break;
+
+            // go to sleep until either:
+            //    a) the next wake time hits, or
+            //    b) someone notifies us because new data was pushed, or
+            //    c) stop flag becomes true
+            std::unique_lock<std::mutex> lk(cv_mtx_);
+            cv_.wait_until(lk, next_wake, [&]{
+                return stop_flag_.load(std::memory_order_relaxed)
+                    || !_imu_queue->empty()
+                    || !_gnss_queue->empty();
+            });
+            const auto now = clock::now();
+            next_wake = now + period;
+            continue;
+        }
+
+        // decide which timestamp to process next
+        bool gnss_is_next = false;
+        if (gnss_next) {
+            const double tz = gnss_next->timestamp;
+
+            // toss GNSS that fell behind our retained history window
+            const bool too_old = !hist.empty() && (tz + TIME_EPS < hist.front().t);
+            if (too_old) {
+                // TODO - we might want to log this event
+                gnss_next.reset();   // drop it and move on
+            } else {
+                // coverage: can we rollback to tz?  (front <= tz <= back)
+                const bool have_history = !hist.empty();
+                const bool tz_within_hist =
+                    have_history &&
+                    (hist.front().t <= tz + TIME_EPS) &&
+                    (tz <= hist.back().t + TIME_EPS);
+
+                // arbitration: don't skip an IMU that's earlier than tz
+                const bool imu_earlier =
+                    (imu_next && (imu_next->measurement_time + TIME_EPS < tz));
+
+                gnss_is_next = tz_within_hist && !imu_earlier;
+            }
+        }
+
+        if (gnss_is_next) {
+            // first consume all IMU up to the GNSS time
+            while (imu_next && imu_next->measurement_time <= gnss_next->timestamp + TIME_EPS) {
+                process_imu(*imu_next);
+                imu_next.reset();
+                ImuData m;
+                if (_imu_queue->try_pop(m)) imu_next = std::move(m);
+            }
+            // then apply the GNSS update (with ZOH catch-up or rollback+replay as needed)
+            process_gnss(*gnss_next);
+            gnss_next.reset();
+        } else {
+            // IMU is earlier = process it (or try to stage one)
+            if (!imu_next) {
+                ImuData m;
+                if (_imu_queue->try_pop(m)) imu_next = std::move(m);
+            }
+            if (imu_next) {
+                process_imu(*imu_next);
+                imu_next.reset();
+            }
+        }
+
+        if (stop_flag_.load(std::memory_order_relaxed)) break;
+
+        // keep a steady cadence
+        const auto now = clock::now();
+        if (now >= next_wake) next_wake = now + period;
+        else                  next_wake += period;
+    }
+}
+
 
 const StateVec& UKF::get_state() const{
     return _x;

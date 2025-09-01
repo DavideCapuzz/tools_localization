@@ -47,7 +47,8 @@ public:
     virtual void initialize(const StateVec& initial_state, const CovMat& initial_covariance) = 0;
 
     // wake filter
-    virtual void start_filter() = 0;
+    virtual void start_filter(std::chrono::milliseconds period) = 0;
+    virtual void stop_filter() = 0;
 
     // predict step (for IMU propagation, etc.)
     virtual void predict(const ControlInput& u, double dt) = 0;

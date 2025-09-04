@@ -102,16 +102,13 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
     }
     double east, north, up;
     converter_.geodetic2Enu(gps_.latitude, gps_.longitude, gps_.altitude, &east, &north, &up);
-    double dn = (north - north_)/(sec - sec_);
-    double de = (east - east_)/(sec - sec_);
-    double du = (up - up_)/(sec - sec_);
     north_ = north;
     east_ = east;
     up_ = up;
     sec_ = sec;
     Eigen::Matrix<double, Z, 1> MeasVec;
-    MeasVec << east, north, up, de, dn, du;
-    Eigen::Matrix<double, Z, Z> MeasCov;
+    MeasVec << east, north, up;
+    Eigen::Matrix<double, Z, Z> MeasCov(msg_in->position_covariance);
     ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
         MeasVec,
         MeasCov

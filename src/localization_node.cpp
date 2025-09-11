@@ -9,7 +9,10 @@
 
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_ros/transform_broadcaster.h"
-
+#include <geometry_msgs/msg/point_stamped.hpp>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <tf2_ros/buffer.h>
 /**********************************************************************
  * Obstacle Avoidance using a nav_msgs/OccupacyGrid and A* path planning
  *
@@ -34,7 +37,8 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode")
       "/clock", 10,
       std::bind(&LocalizationNode::clockCallback, this, std::placeholders::_1)
   );
-  tfB_ = std::make_unique<tf2_ros::TransformBroadcaster>(this);
+    tfBuffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
   publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
   timer_ = this->create_wall_timer(
       100ms, std::bind(&LocalizationNode::timer_callback, this));
@@ -82,15 +86,26 @@ void LocalizationNode::clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr 
 
 void LocalizationNode::ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in){
   imu_pose_ = *msg_in;
+    geometry_msgs::msg::Vector3Stamped accel_in, accel_out;
+    accel_in.header = msg_in->header;
+    accel_in.vector = msg_in->linear_acceleration;
+
+    tfBuffer_->transform(accel_in, accel_out, "base_link", tf2::durationFromSec(0.1));
+
+    geometry_msgs::msg::Vector3Stamped gyro_in, gyro_out;
+    gyro_in.header = msg_in->header;
+    gyro_in.vector = msg_in->angular_velocity;
+
+    tfBuffer_->transform(gyro_in, gyro_out, "base_link", tf2::durationFromSec(0.1));
     ukf_.read_imu({
-        imu_pose_.linear_acceleration.x,
-        imu_pose_.linear_acceleration.y,
-        imu_pose_.linear_acceleration.z,
-        imu_pose_.angular_velocity.x,
-        imu_pose_.angular_velocity.y,
-        imu_pose_.angular_velocity.z,
-        static_cast<double>(imu_pose_.header.stamp.sec)
-    });
+    accel_out.vector.x,
+    accel_out.vector.y,
+    accel_out.vector.z,
+    gyro_out.vector.x,
+    gyro_out.vector.y,
+    gyro_out.vector.z,
+    msg_in->header.stamp.sec + msg_in->header.stamp.nanosec * 1e-9
+});
 }
 
 void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in){
@@ -100,29 +115,53 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
         converter_.initialiseReference(gps_.latitude, gps_.longitude, gps_.altitude);
         gps_init_ = true;
     }
-    double east, north, up;
-    converter_.geodetic2Enu(gps_.latitude, gps_.longitude, gps_.altitude, &east, &north, &up);
-    double dn = (north - north_)/(sec - sec_);
-    double de = (east - east_)/(sec - sec_);
-    double du = (up - up_)/(sec - sec_);
-    north_ = north;
-    east_ = east;
-    up_ = up;
-    sec_ = sec;
-    Eigen::Matrix<double, Z, 1> MeasVec;
-    MeasVec << east, north, up, de, dn, du;
-    Eigen::Matrix<double, Z, Z> MeasCov;
-    ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
-        MeasVec,
-        MeasCov
-    });
+    geometry_msgs::msg::PointStamped gps_point;
+    gps_point.header.stamp = gps_.header.stamp;
+    gps_point.header.frame_id = gps_.header.frame_id;  // ENU frame
+    converter_.geodetic2Enu(
+        gps_.latitude, gps_.longitude, gps_.altitude,
+        &gps_point.point.x, &gps_point.point.y , &gps_point.point.z);
+
+
+    try {
+        geometry_msgs::msg::PointStamped gps_point_transformed = tfBuffer_->transform(
+                gps_point,
+                "base_link",
+                tf2::durationFromSec(0.1)  // timeout
+            );
+        // double dn = (north - north_)/(sec - sec_);
+        // double de = (east - east_)/(sec - sec_);
+        // double du = (up - up_)/(sec - sec_);
+        // north_ = north;
+        // east_ = east;
+        // up_ = up;
+        sec_ = sec;
+        Eigen::Matrix<double, Z, 1> MeasVec;
+        MeasVec << gps_point_transformed.point.x, gps_point_transformed.point.y, gps_point_transformed.point.z, 0, 0, 0;
+        Eigen::Matrix<double, Z, Z> MeasCov;
+        MeasCov <<
+            gps_.position_covariance.at(0), gps_.position_covariance.at(1), gps_.position_covariance.at(2), 0, 0, 0,
+            gps_.position_covariance.at(3), gps_.position_covariance.at(4), gps_.position_covariance.at(5), 0, 0, 0,
+            gps_.position_covariance.at(6), gps_.position_covariance.at(7), gps_.position_covariance.at(8), 0, 0, 0,
+            0,0,0,0,0,0,
+            0,0,0,0,0,0,
+            0,0,0,0,0,0;
+
+        ukf_.read_gps({static_cast<double>(gps_.header.stamp.sec),
+            MeasVec,
+            MeasCov
+        });
+    }
+    catch (tf2::TransformException &ex) {
+        RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());
+    }
+
 }
 
 void LocalizationNode::SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in)
 {
   slam_pose_ = *msg_in;
   pose_received_ = true;
-  std::cout<<"ricevo pose slam\n";
 }
 
 int main(int argc, char **argv)

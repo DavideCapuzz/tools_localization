@@ -46,7 +46,7 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode")
 
     std::string config_file_path = this->get_parameter("config_path").as_string();
     // std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
-    ukf_.init(config_file_path);
+    ukf_.configure(config_file_path);
     // make a dummy state
     StateVec initial_state;
     CovMat initial_covariance;

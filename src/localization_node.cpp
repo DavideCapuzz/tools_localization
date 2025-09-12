@@ -44,8 +44,8 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode")
       100ms, std::bind(&LocalizationNode::timer_callback, this));
 
 
-    std::string config_file_path = this->get_parameter("config_path").as_string();
-    // std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+    // std::string config_file_path = this->get_parameter("config_path").as_string();
+    std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
     ukf_.configure(config_file_path);
     // make a dummy state
     StateVec initial_state;
@@ -137,17 +137,13 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
         // up_ = up;
         sec_ = sec;
         Eigen::Matrix<double, Z, 1> MeasVec;
-        MeasVec << gps_point_transformed.point.x, gps_point_transformed.point.y, gps_point_transformed.point.z, 0, 0, 0;
+        MeasVec << gps_point_transformed.point.x, gps_point_transformed.point.y, gps_point_transformed.point.z;
         Eigen::Matrix<double, Z, Z> MeasCov;
-        MeasCov <<
-            gps_.position_covariance.at(0), gps_.position_covariance.at(1), gps_.position_covariance.at(2), 0, 0, 0,
-            gps_.position_covariance.at(3), gps_.position_covariance.at(4), gps_.position_covariance.at(5), 0, 0, 0,
-            gps_.position_covariance.at(6), gps_.position_covariance.at(7), gps_.position_covariance.at(8), 0, 0, 0,
-            0,0,0,0,0,0,
-            0,0,0,0,0,0,
-            0,0,0,0,0,0;
+        MeasCov << gps_.position_covariance.at(0), gps_.position_covariance.at(1),gps_.position_covariance.at(2),
+        gps_.position_covariance.at(3), gps_.position_covariance.at(4),gps_.position_covariance.at(5),
+        gps_.position_covariance.at(6), gps_.position_covariance.at(7),gps_.position_covariance.at(8);
 
-        ukf_.read_gps({static_cast<double>(gps_.header.stamp.sec),
+        ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
             MeasVec,
             MeasCov
         });
@@ -162,13 +158,4 @@ void LocalizationNode::SlamCallBack(const geometry_msgs::msg::PoseWithCovariance
 {
   slam_pose_ = *msg_in;
   pose_received_ = true;
-}
-
-int main(int argc, char **argv)
-{
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<LocalizationNode>();
-  rclcpp::spin(node);
-  rclcpp::shutdown();
-  return 0;
 }

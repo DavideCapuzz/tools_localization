@@ -19,7 +19,7 @@ public:
 
     // alternate constructor for default initialization
     UKF();
-    ~UKF();
+    ~UKF(){};
 
     void configure(const std::string& configs_path);
 
@@ -48,7 +48,7 @@ public:
 private:
     // config
     UKFParams _params;
-    std::string _measurement_file_path;
+    // std::string _measurement_file_path;
     std::string _ground_truth_path;
 
     // UKF scaling parameters

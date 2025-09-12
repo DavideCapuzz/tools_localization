@@ -3,9 +3,9 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 
-#include "UKF.hpp"
-#include "IMU_Matrices.hpp"
-#include "safe_cholesky.hpp"
+#include "UKF/UKF.hpp"
+#include "UKF/IMU_Matrices.hpp"
+#include "UKF/safe_cholesky.hpp"
 
 using json = nlohmann::json;
 
@@ -35,7 +35,7 @@ void UKF::read_configs(std::ifstream& inFile) {
     _kappa = j["kappa"];
 
     // get measurement file path
-    _measurement_file_path = j["path_to_measurement"];
+    // _measurement_file_path = j["path_to_measurement"];
 
     // example printouts
     std::cout << "Configuration loaded successfully.\n";

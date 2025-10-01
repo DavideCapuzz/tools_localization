@@ -47,10 +47,9 @@ class LocalizationNode : public rclcpp::Node
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr sub_slam_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr sub_twist_;
-
-    std::unique_ptr<tf2_ros::TransformBroadcaster> tfB_;
-  std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
-  std::shared_ptr<tf2_ros::TransformListener> tfListener_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_brodacaster_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr publisher_odom_;
     rclcpp::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_sub_;
     rclcpp::Time last_clock_time_;
@@ -79,8 +78,9 @@ class LocalizationNode : public rclcpp::Node
 rclcpp::Time last_clock_time){
 
     geometry_msgs::msg::TransformStamped transform;
-    transform.header.stamp.sec = last_clock_time.seconds();
-    transform.header.stamp.nanosec = last_clock_time.nanoseconds();
+    // transform.header.stamp.sec = last_clock_time.seconds();
+    // transform.header.stamp.nanosec = last_clock_time.nanoseconds();
+    transform.header.stamp = this->get_clock()->now();
     transform.header.frame_id = "odom";
     transform.child_frame_id = "base_link";
 
@@ -93,8 +93,9 @@ rclcpp::Time last_clock_time){
     transform.transform.rotation.z = theta;
     transform.transform.rotation.w = 1;
     auto odom = nav_msgs::msg::Odometry();
-    odom.header.stamp.sec = last_clock_time.seconds();
-    odom.header.stamp.nanosec = last_clock_time.nanoseconds();
+    // odom.header.stamp.sec = last_clock_time.seconds();
+    // odom.header.stamp.nanosec = last_clock_time.nanoseconds();
+    odom.header.stamp = this->get_clock()->now();
     odom.header.frame_id = "odom";
     odom.child_frame_id = "base_link";
     // Set position

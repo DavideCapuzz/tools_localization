@@ -23,6 +23,7 @@
   <depend>nav2_msgs</depend>
   <depend>can_msgs</depend>
   <depend>nlohmann_json</depend>
+  <depend>rosbag2_cpp</depend>
 
   <!-- linear algebra (Eigen) -->
   <build_depend>eigen3_cmake_module</build_depend>

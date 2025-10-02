@@ -42,6 +42,14 @@ find_package(rosbag2_cpp REQUIRED)
 # =====================================================
 # =============== Library (implementation) ============
 # =====================================================
+include(FetchContent)
+FetchContent_Declare(
+        refx
+        GIT_REPOSITORY https://github.com/mosaico-labs/refx.git/
+        GIT_TAG        v0.1.0
+)
+FetchContent_MakeAvailable(refx)
+
 add_library(localization_node_lib
         src/localization_node.cpp
 )
@@ -70,6 +78,7 @@ target_link_libraries(localization_node_lib
         UKF
         Eigen3::Eigen
         nlohmann_json::nlohmann_json
+        refx::refx
 )
 
 target_compile_features(localization_node_lib PUBLIC cxx_std_17)

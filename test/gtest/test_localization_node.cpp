@@ -31,39 +31,44 @@
 #include <rclcpp/time_source.hpp>
 using namespace std::chrono_literals;
 
+
+
 class LocalizationNodeTest : public ::testing::Test
 {
 protected:
     static void SetUpTestSuite()
     {
-        rclcpp::init(0, nullptr);
+        if (!rclcpp::ok()) {
+            rclcpp::init(0, nullptr);
+        }
     }
 
     static void TearDownTestSuite()
     {
-        rclcpp::shutdown();
+
+        if (rclcpp::ok()) {
+            rclcpp::shutdown();
+        }
     }
 
     void SetUp() override
     {
-        if (!rclcpp::ok()) {
-            SetUpTestSuite();
-        }
-        // node_ = std::make_shared<LocalizationNode>();
-
-        clock_= std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
-
-
-        // Create TF buffer with the clock
-        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(clock_);
-        tf_buffer_->setUsingDedicatedThread(true);
+        node_ = std::make_shared<LocalizationNode>();
+        //
+        // clock_= std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
+        //
+        // // Create TF buffer with the clock
+        //tf_buffer_ = std::make_shared<tf2_ros::Buffer>(clock_);
+        //tf_buffer_->setUsingDedicatedThread(true);
     }
 
-
-    // rclcpp::Node::SharedPtr node_;
-    std::shared_ptr<rclcpp::Clock> clock_;
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-    rclcpp::Time latest_clock_time_{0, 0, RCL_ROS_TIME};
+    void TearDown() override {
+        node_.reset();
+    }
+    std::shared_ptr<LocalizationNode> node_;
+    // std::shared_ptr<rclcpp::Clock> clock_;
+    //std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    // rclcpp::Time latest_clock_time_{0, 0, RCL_ROS_TIME};
 };
 
 TEST_F(LocalizationNodeTest, Loadmcap)
@@ -89,8 +94,8 @@ TEST_F(LocalizationNodeTest, Loadmcap)
             serialization.deserialize_message(&serialized_msg, tf_msg.get());
 
             for (const auto& transform : tf_msg->transforms) {
+                node_->tf_buffer_->setTransform(transform, "mcap_injector", false);
                 //std::cout<<"dynamic from "<<transform.child_frame_id<<" to "<<transform.header.frame_id<<std::endl;
-                tf_buffer_->setTransform(transform, "mcap_loader", false);
             }
         } else if (bag_msg->topic_name == "/tf_static") {
             auto tf_msg = std::make_shared<tf2_msgs::msg::TFMessage>();
@@ -99,50 +104,28 @@ TEST_F(LocalizationNodeTest, Loadmcap)
             serialization.deserialize_message(&serialized_msg, tf_msg.get());
 
             for (const auto& transform : tf_msg->transforms) {
-                //std::cout<<"static from "<<transform.child_frame_id<<" to "<<transform.header.frame_id<<std::endl;
+                std::cout<<"static from "<<transform.child_frame_id<<" to "<<transform.header.frame_id<<std::endl;
+                node_->tf_buffer_->setTransform(transform, "mcap_injector", true);
 
-                tf_buffer_->setTransform(transform, "mcap_loader", true);
+                // tf_buffer_->setTransform(transform, "mcap_loader", true);
+                // std::cout<<tf_buffer_->allFramesAsString()<<std::endl;
             }
         }
 
         if (bag_msg->topic_name == "/navsat") {
-            rclcpp::Serialization<sensor_msgs::msg::NavSatFix> serializer;
-            sensor_msgs::msg::NavSatFix msg;
+            auto msg = std::make_shared<sensor_msgs::msg::NavSatFix>();
             rclcpp::SerializedMessage serialized_msg(*bag_msg->serialized_data);
-            serializer.deserialize_message(&serialized_msg, &msg);
+            rclcpp::Serialization<sensor_msgs::msg::NavSatFix> serializer;
+            serializer.deserialize_message(&serialized_msg, msg.get());
+            node_->GpsCallBack(msg);
         }
 
         if (bag_msg->topic_name == "/imu") {
-            rclcpp::Serialization<sensor_msgs::msg::Imu> serializer;
-            sensor_msgs::msg::Imu msg;
+            auto msg = std::make_shared<sensor_msgs::msg::Imu>();
             rclcpp::SerializedMessage serialized_msg(*bag_msg->serialized_data);
-            serializer.deserialize_message(&serialized_msg, &msg);
-
-            msg.header.frame_id = "imu";
-            geometry_msgs::msg::Vector3Stamped accel_in, accel_out;
-            accel_in.header = msg.header;
-            accel_in.vector = msg.linear_acceleration;
-            try {
-                tf_buffer_->transform(accel_in, accel_out, "base_link", tf2::durationFromSec(0.1));
-
-                geometry_msgs::msg::Vector3Stamped gyro_in, gyro_out;
-                gyro_in.header = msg.header;
-                gyro_in.vector = msg.angular_velocity;
-
-                tf_buffer_->transform(gyro_in, gyro_out, "base_link", tf2::durationFromSec(0.1));
-            //     ukf_.read_imu({
-            //     accel_out.vector.x,
-            //     accel_out.vector.y,
-            //     accel_out.vector.z,
-            //     gyro_out.vector.x,
-            //     gyro_out.vector.y,
-            //     gyro_out.vector.z,
-            //     imu_pose_.header.stamp.sec + imu_pose_.header.stamp.nanosec * 1e-9
-            // });
-            }
-            catch (tf2::TransformException &ex) {
-                std::cout<< "Transform failed:"<<ex.what()<<"\n";
-            }
+            rclcpp::Serialization<sensor_msgs::msg::Imu> serializer;
+            serializer.deserialize_message(&serialized_msg, msg.get());
+            node_->ImuCallBack(msg);
         }
     }
 }
@@ -166,7 +149,7 @@ TEST_F(LocalizationNodeTest, Loadmcap)
 //     auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
 //     imu_msg->header.stamp = node_->now();
 //     imu_msg->header.frame_id = "base_link";
-//     imu_msg->linear_acceleration.x = 0.1;
+//     imu_msg->linear_acceration.x = 0.1;
 //     imu_msg->angular_velocity.z = 0.05;
 //
 //     // ASSERT_NO_THROW(node_->ImuCallBack(imu_msg));

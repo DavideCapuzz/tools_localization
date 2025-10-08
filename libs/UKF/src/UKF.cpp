@@ -75,7 +75,7 @@ void UKF::configure(const std::string& configs_path)
     _Q.setIdentity();
     _Q *= 1e-3;
 
-    ukf_log() << "[UKF] _lambda = " << _lambda << ", _gamma = " << _gamma << "\n";
+    // ukf_log() << "[UKF] _lambda = " << _lambda << ", _gamma = " << _gamma << "\n";
 
     // create the queues for holding incoming measurements
     _imu_queue = std::make_unique<ThreadQueue<ImuData>>(1000);

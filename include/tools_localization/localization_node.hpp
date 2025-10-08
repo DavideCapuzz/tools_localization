@@ -31,6 +31,8 @@
 
 #include "UKF/UKF.hpp"
 #include "geodetic_utils/geodetic_conv.hpp"
+#include "gtest/gtest_prod.h"
+
 using namespace std::chrono_literals;
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -41,24 +43,26 @@ class LocalizationNode : public rclcpp::Node
   public:
     LocalizationNode();
     ~LocalizationNode();
-
-  private:
+private:
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr sub_loc_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr sub_slam_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr sub_twist_;
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_brodacaster_;
+  // std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  void GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in);
+  void ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in);
+  void SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in);
+  void TwistCallBack(const geometry_msgs::msg::Twist::SharedPtr msg_in);
+  void clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg);
+  void timer_callback();
+
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr publisher_odom_;
     rclcpp::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_sub_;
     rclcpp::Time last_clock_time_;
-    void GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in);
-    void ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in);
-    void SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in);
-    void TwistCallBack(const geometry_msgs::msg::Twist::SharedPtr msg_in);
-    void clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg);
-    void timer_callback();
 
     rclcpp::TimerBase::SharedPtr timer_;
     geometry_msgs::msg::PoseWithCovarianceStamped slam_pose_;
@@ -110,4 +114,6 @@ rclcpp::Time last_clock_time){
 
     return std::make_tuple(transform, odom);
   };
+  // friend class LocalizationNodeTest;
+  FRIEND_TEST(LocalizationNodeTest, Loadmcap);
 };

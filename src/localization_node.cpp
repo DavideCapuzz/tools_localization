@@ -42,7 +42,7 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode")
     tf_brodacaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
   publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
   timer_ = this->create_wall_timer(
-      100ms, std::bind(&LocalizationNode::timer_callback, this));
+      50ms, std::bind(&LocalizationNode::timer_callback, this));
 
 
     // std::string config_file_path = this->get_parameter("config_path").as_string();
@@ -70,14 +70,15 @@ LocalizationNode::~LocalizationNode() {}
 void LocalizationNode::timer_callback()
 {
     auto state = ukf_.get_state();
-    // auto [transform, odom] =
-    //     set_oputout(state[0],state[1],state[2],last_clock_time_);
     auto [transform, odom] =
-        set_oputout(0,0,0,last_clock_time_);
+        set_oputout(state[0],state[1],state[2],last_clock_time_);
+    // auto [transform, odom] =
+    //     set_oputout(0,0,0,last_clock_time_);
     try {
         RCLCPP_WARN(this->get_logger(), "Transform failed send: %d, %d,%d,%d");
     tf_brodacaster_->sendTransform(transform);
-
+        std::cout<<"of "<<state[0]<<" "<<state[1]<<" "<<state[1]<<"\n";
+        std::cout<<"ot "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.x<<"\n";
         publisher_odom_->publish(odom);
     }
     catch (tf2::TransformException &ex) {
@@ -160,7 +161,7 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
         MeasCov << gps_.position_covariance.at(0), gps_.position_covariance.at(1),gps_.position_covariance.at(2),
         gps_.position_covariance.at(3), gps_.position_covariance.at(4),gps_.position_covariance.at(5),
         gps_.position_covariance.at(6), gps_.position_covariance.at(7),gps_.position_covariance.at(8);
-
+        std::cout<<"i "<<gps_point_transformed.point.x<<" "<<gps_point_transformed.point.y<<" "<<gps_point_transformed.point.z<<std::endl;
         ukf_.read_gps({static_cast<double>(imu_pose_.header.stamp.sec),
             MeasVec,
             MeasCov

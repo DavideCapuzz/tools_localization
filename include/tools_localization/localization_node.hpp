@@ -81,38 +81,34 @@ private:
   double x,double y,double theta,
 rclcpp::Time last_clock_time){
 
+    // --- Convert yaw to quaternion
+    tf2::Quaternion q;
+    q.setRPY(0.0, 0.0, theta);
+
+    // --- Create TransformStamped
     geometry_msgs::msg::TransformStamped transform;
-    // transform.header.stamp.sec = last_clock_time.seconds();
-    // transform.header.stamp.nanosec = last_clock_time.nanoseconds();
-    transform.header.stamp = this->get_clock()->now();
+    transform.header.stamp = last_clock_time;
     transform.header.frame_id = "odom";
     transform.child_frame_id = "base_link";
-
     transform.transform.translation.x = x;
     transform.transform.translation.y = y;
-    transform.transform.translation.z = 0;
+    transform.transform.translation.z = 0.0;
+    transform.transform.rotation = tf2::toMsg(q);
 
-    transform.transform.rotation.x = 0;
-    transform.transform.rotation.y = 0;
-    transform.transform.rotation.z = theta;
-    transform.transform.rotation.w = 1;
-    auto odom = nav_msgs::msg::Odometry();
-    // odom.header.stamp.sec = last_clock_time.seconds();
-    // odom.header.stamp.nanosec = last_clock_time.nanoseconds();
-    odom.header.stamp = this->get_clock()->now();
-    odom.header.frame_id = "odom";
-    odom.child_frame_id = "base_link";
-    // Set position
+    // --- Create Odometry
+    nav_msgs::msg::Odometry odom;
+    odom.header = transform.header;  // copy timestamp + frame_id
+    odom.child_frame_id = transform.child_frame_id;
     odom.pose.pose.position.x = x;
     odom.pose.pose.position.y = y;
     odom.pose.pose.position.z = 0.0;
+    odom.pose.pose.orientation = transform.transform.rotation;
 
-    odom.pose.pose.orientation.x = 0;
-    odom.pose.pose.orientation.y = 0;
-    odom.pose.pose.orientation.z = theta;
-    odom.pose.pose.orientation.w = 1;
+    // Optional: Add velocity and covariance fields if needed
+    // odom.twist.twist.linear.x = vx;
+    // odom.pose.covariance = { ... };
 
-    return std::make_tuple(transform, odom);
+    return {transform, odom};
   };
   // friend class LocalizationNodeTest;
   FRIEND_TEST(LocalizationNodeTest, Loadmcap);

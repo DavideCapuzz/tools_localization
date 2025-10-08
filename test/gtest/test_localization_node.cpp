@@ -76,6 +76,10 @@ TEST_F(LocalizationNodeTest, Loadmcap)
     const std::string filename = "/home/davide/ros_ws/wheele/bags/rosbag2_2025_09_28-07_37_13/rosbag2_2025_09_28-07_37_13_0.mcap";
     rosbag2_cpp::Reader reader;
     reader.open(filename);
+
+    rclcpp::Time last_timer_execution{0, 0, RCL_ROS_TIME};
+    rclcpp::Duration timer_period(0, 50000000);
+
     // tfBuffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock(), tf2::durationFromSec(30.0));
     while (reader.has_next()) {
         auto bag_msg = reader.read_next();
@@ -84,7 +88,11 @@ TEST_F(LocalizationNodeTest, Loadmcap)
             rclcpp::SerializedMessage serialized_msg(*bag_msg->serialized_data);
             rclcpp::Serialization<rosgraph_msgs::msg::Clock> serialization;
             serialization.deserialize_message(&serialized_msg, clock_msg.get());
-
+            rclcpp::Time current_time(clock_msg->clock);
+            if ((current_time - last_timer_execution) >= timer_period) {
+                node_->timer_callback();
+                last_timer_execution = current_time;
+            }
         }
 
         if (bag_msg->topic_name == "/tf") {

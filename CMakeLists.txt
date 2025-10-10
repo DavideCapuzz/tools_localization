@@ -145,6 +145,9 @@ if(BUILD_TESTING)
           nav_msgs
           rosbag2_cpp
   )
+
+  target_compile_definitions(test_localization_node PRIVATE
+          PACKAGE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 # =====================================================

@@ -29,6 +29,8 @@
 #include <vector>
 #include <algorithm>
 #include <rclcpp/time_source.hpp>
+#include <filesystem>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 using namespace std::chrono_literals;
 
 
@@ -69,11 +71,13 @@ protected:
     // std::shared_ptr<rclcpp::Clock> clock_;
     //std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     // rclcpp::Time latest_clock_time_{0, 0, RCL_ROS_TIME};
+    // std::string pkg_share_ = ament_index_cpp::get_package_share_directory("wheele");
+    std::string pkg_share_ = PACKAGE_SOURCE_DIR;
 };
 
 TEST_F(LocalizationNodeTest, Loadmcap)
 {
-    const std::string filename = "/home/davide/ros_ws/wheele/bags/rosbag2_2025_09_28-07_37_13/rosbag2_2025_09_28-07_37_13_0.mcap";
+    std::string filename = pkg_share_ + "/test/data/rosbag2_2025_09_28-07_37_13/rosbag2_2025_09_28-07_37_13_0.mcap";
     rosbag2_cpp::Reader reader;
     reader.open(filename);
 

@@ -23,7 +23,8 @@
 using std::placeholders::_1;
 
 // Constructor
-LocalizationNode::LocalizationNode() : Node("LocalizationNode")
+LocalizationNode::LocalizationNode(const rclcpp::NodeOptions &options) :
+Node("LocalizationNode",options)
 {
     sub_loc_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
           "/navsat", 10, std::bind(&LocalizationNode::GpsCallBack, this, _1));
@@ -45,16 +46,21 @@ LocalizationNode::LocalizationNode() : Node("LocalizationNode")
       50ms, std::bind(&LocalizationNode::timer_callback, this));
 
     // std::string config_file_path = this->get_parameter("config_path").as_string();
-    filter_ = filter_factory("ukf");
+    this->declare_parameter("filter_type", "ukf");
+    std::string filter_type = this->get_parameter("filter_type").as_string();
+
+    filter_ = filter_factory(filter_type);
+
     rosbag2_storage::StorageOptions storage_options;
-    storage_options.uri = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result"; // Specify the desired path and filename
-    storage_options.storage_id = "mcap"; // Crucially, set the storage_id to "mcap"
+    storage_options.uri = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";
+    storage_options.storage_id = "mcap";
 
     rosbag2_cpp::ConverterOptions converter_options;
     converter_options.input_serialization_format = "cdr";
     converter_options.output_serialization_format = "cdr";
 
     writer.open(storage_options, converter_options);
+
     rosbag2_storage::TopicMetadata topic_metadata;
     topic_metadata.name = "/pose_raw";
     topic_metadata.type = "geometry_msgs/msg/PointStamped";

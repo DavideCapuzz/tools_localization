@@ -53,7 +53,13 @@ protected:
 
     void SetUp() override
     {
-        node_ = std::make_shared<LocalizationNode>();
+        std::filesystem::remove_all(pkg_share_ + "/test/data/result_data/result");
+        rclcpp::NodeOptions options;
+        options.parameter_overrides({
+          rclcpp::Parameter("filter_type", "ukf")
+        });
+
+        node_ = std::make_shared<LocalizationNode>(options);
         //
         // clock_= std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
         //
@@ -75,7 +81,7 @@ protected:
 
 TEST_F(LocalizationNodeTest, Loadmcap)
 {
-    std::filesystem::remove_all(pkg_share_ + "/test/data/result_data/*");
+
     std::string filename = pkg_share_ + "/test/data/rosbag2_2025_09_28-07_37_13/rosbag2_2025_09_28-07_37_13_0_reduced.mcap";
     rosbag2_cpp::Reader reader;
     reader.open(filename);

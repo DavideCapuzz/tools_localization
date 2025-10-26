@@ -52,7 +52,7 @@ using namespace std::chrono_literals;
 class LocalizationNode final : public rclcpp::Node
 {
   public:
-    LocalizationNode();
+    LocalizationNode(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
     ~LocalizationNode();
   private:
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr sub_loc_;

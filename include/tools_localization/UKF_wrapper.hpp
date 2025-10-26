@@ -8,11 +8,13 @@
 #pragma once
 #include "basic_filter.hpp"
 #include "UKF/UKF.hpp"
+#include <yaml-cpp/yaml.h>
 
 class UKFwrapper : public FilterBase {
     public:
-    UKFwrapper(){
-        std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+    UKFwrapper(const YAML::Node& config_node){
+        // std::string config_file_path = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+        const std::string config_file_path = config_node["config_file_path"].as<std::string>();
         ukf_.configure(config_file_path);
         // make a dummy state
         StateVec initial_state;

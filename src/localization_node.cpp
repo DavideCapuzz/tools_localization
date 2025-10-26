@@ -48,8 +48,8 @@ Node("LocalizationNode",options)
     // std::string config_file_path = this->get_parameter("config_path").as_string();
     this->declare_parameter("filter_type", "ukf");
     std::string filter_type = this->get_parameter("filter_type").as_string();
-
-    filter_ = filter_factory(filter_type);
+    YAML::Node config_node;
+    filter_ = filter_factory(filter_type,config_node);
 
     rosbag2_storage::StorageOptions storage_options;
     storage_options.uri = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";

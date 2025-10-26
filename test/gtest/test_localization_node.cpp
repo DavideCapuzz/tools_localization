@@ -20,9 +20,7 @@
 #include <rosgraph_msgs/msg/clock.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include <rosbag2_cpp/reader.hpp>
-#include <rosbag2_cpp/readers/sequential_reader.hpp>
-#include <rosbag2_storage/storage_options.hpp>
+
 #include <tf2_msgs/msg/tf_message.hpp>
 #include <memory>
 #include <string>
@@ -77,7 +75,8 @@ protected:
 
 TEST_F(LocalizationNodeTest, Loadmcap)
 {
-    std::string filename = pkg_share_ + "/test/data/rosbag2_2025_09_28-07_37_13/rosbag2_2025_09_28-07_37_13_0.mcap";
+    std::filesystem::remove_all(pkg_share_ + "/test/data/result_data/*");
+    std::string filename = pkg_share_ + "/test/data/rosbag2_2025_09_28-07_37_13/rosbag2_2025_09_28-07_37_13_0_reduced.mcap";
     rosbag2_cpp::Reader reader;
     reader.open(filename);
 
@@ -140,6 +139,7 @@ TEST_F(LocalizationNodeTest, Loadmcap)
             node_->ImuCallBack(msg);
         }
     }
+
 }
 
 // TEST_F(LocalizationNodeTest, GpsCallbackUpdatesState)

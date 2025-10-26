@@ -29,9 +29,20 @@
 #include <tf2_ros/buffer.h>
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 
-#include "UKF/UKF.hpp"
-#include "geodetic_utils/geodetic_conv.hpp"
+#include "factory_filter.hpp"
+// #include "geodetic_utils/geodetic_conv.hpp"
 #include "gtest/gtest_prod.h"
+#include <iostream>
+#include <cmath>
+#include <refx/geometry.h>  // for Vector3D, Coordinate3D, Rotation and YawPitchRoll
+#include <refx/transformations.h> // frame_cast, frame_transform
+
+#include <rosbag2_cpp/readers/sequential_reader.hpp>
+#include <rosbag2_cpp/writers/sequential_writer.hpp>
+#include <rosbag2_storage/serialized_bag_message.hpp>
+#include <rosbag2_storage/storage_options.hpp>
+#include <rosbag2_cpp/writer.hpp>
+#include <rosbag2_cpp/reader.hpp>
 
 using namespace std::chrono_literals;
 
@@ -59,6 +70,8 @@ private:
   void clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg);
   void timer_callback();
 
+  std::shared_ptr<FilterBase> filter_;
+
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr publisher_odom_;
     rclcpp::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_sub_;
@@ -71,9 +84,12 @@ private:
     geometry_msgs::msg::Twist twist_;
 
     bool pose_received_{false};
-  UKF ukf_ ;
-  geodetic_converter::GeodeticConverter converter_;
+
+  // geodetic_converter::GeodeticConverter converter_;
   bool gps_init_{false};
+  refx::Coordinate3D<refx::lla> local_gps_origin_;
+
+  rosbag2_cpp::Writer writer;
 
   double north_{0.0}, east_{0.0}, up_{0.0}, sec_{0.0};
 

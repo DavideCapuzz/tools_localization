@@ -15,6 +15,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Submodules / local libs
 # ------------------------------
 add_subdirectory(libs/UKF)
+add_subdirectory(libs/EKF_basic)
 
 # ------------------------------
 # ROS2 dependencies
@@ -80,6 +81,7 @@ target_link_libraries(localization_node_lib
         Eigen3::Eigen
         nlohmann_json::nlohmann_json
         refx::refx
+        EKF_basic
 )
 
 target_compile_features(localization_node_lib PUBLIC cxx_std_17)

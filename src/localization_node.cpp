@@ -46,26 +46,15 @@ Node("LocalizationNode",options)
       50ms, std::bind(&LocalizationNode::timer_callback, this));
 
     // std::string config_file_path = this->get_parameter("config_path").as_string();
-    this->declare_parameter("filter_type", "ukf");
+    this->declare_parameter("filter_type", "ekf");
     std::string filter_type = this->get_parameter("filter_type").as_string();
     YAML::Node config_node;
     filter_ = filter_factory(filter_type,config_node);
-
-    rosbag2_storage::StorageOptions storage_options;
-    storage_options.uri = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";
-    storage_options.storage_id = "mcap";
-
-    rosbag2_cpp::ConverterOptions converter_options;
-    converter_options.input_serialization_format = "cdr";
-    converter_options.output_serialization_format = "cdr";
-
-    writer.open(storage_options, converter_options);
-
-    rosbag2_storage::TopicMetadata topic_metadata;
-    topic_metadata.name = "/pose_raw";
-    topic_metadata.type = "geometry_msgs/msg/PointStamped";
-    topic_metadata.serialization_format = "cdr";
-    writer.create_topic(topic_metadata);
+    YAML::Node config_log;
+    config_log["out_file"] = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";
+    config_log["log_raw_pose"] =  true;
+    config_log["log_end_pose"] =  true;
+    set_up_debug_log(config_log);
 }
 
 LocalizationNode::~LocalizationNode() {
@@ -79,9 +68,18 @@ void LocalizationNode::timer_callback()
         set_oputout(state[0],state[1],state[2],last_clock_time_);
     // auto [transform, odom] =
     //     set_oputout(0,0,0,last_clock_time_);
+    geometry_msgs::msg::PointStamped gps_point;
+    gps_point.header.stamp = gps_.header.stamp;
+    gps_point.header.frame_id = gps_.header.frame_id;  // ENU frame
+    gps_point.point.x = state[0];
+    gps_point.point.y = state[1];
+    gps_point.point.z = 0;
+
+    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_end");
+
     try {
         RCLCPP_WARN(this->get_logger(), "Transform failed send: %d, %d,%d,%d");
-    tf_brodacaster_->sendTransform(transform);
+        tf_brodacaster_->sendTransform(transform);
         std::cout<<"of "<<state[0]<<" "<<state[1]<<" "<<state[1]<<"\n";
         std::cout<<"ot "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.x<<"\n";
         publisher_odom_->publish(odom);
@@ -149,29 +147,7 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
     gps_point.point.y = pose_enu.y();
     gps_point.point.z = pose_enu.z();
 
-    rclcpp::SerializedMessage serialized_msg;
-    rclcpp::Serialization<geometry_msgs::msg::PointStamped> serializer;
-    serializer.serialize_message(&gps_point, &serialized_msg);
-
-    // Prepare rosbag message
-    auto bag_message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-    bag_message->topic_name = "/pose_raw";
-    bag_message->recv_timestamp = rclcpp::Clock().now().nanoseconds();
-
-    // Copy serialized buffer
-    auto data = std::make_shared<rcutils_uint8_array_t>();
-    auto src = serialized_msg.get_rcl_serialized_message();
-
-    data->allocator = src.allocator;
-    data->buffer_length = src.buffer_length;
-    data->buffer_capacity = src.buffer_capacity;
-    data->buffer = static_cast<uint8_t *>(malloc(src.buffer_length));
-    memcpy(data->buffer, src.buffer, src.buffer_length);
-
-    bag_message->serialized_data = data;
-
-    // Write the message to the bag
-    writer.write(bag_message);
+    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_raw");
 
     try {
         geometry_msgs::msg::PointStamped gps_point_transformed = tf_buffer_->transform(

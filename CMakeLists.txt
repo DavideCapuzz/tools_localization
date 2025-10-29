@@ -72,6 +72,7 @@ ament_target_dependencies(localization_node_lib
         builtin_interfaces
         nav_msgs
         sensor_msgs
+        rosbag2_cpp
 )
 
 target_link_libraries(localization_node_lib

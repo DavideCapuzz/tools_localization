@@ -5,7 +5,7 @@ project(tools_localization)
 # Compiler warnings / features
 # ------------------------------
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # ------------------------------
 # Submodules / local libs
 # ------------------------------
-add_subdirectory(libs/UKF)
+add_subdirectory(libs/OpenIMU/cpp_source)
 
 # ------------------------------
 # ROS2 dependencies
@@ -75,7 +75,7 @@ ament_target_dependencies(localization_node_lib
 )
 
 target_link_libraries(localization_node_lib
-        UKF
+        PUBLIC ukf_core
         Eigen3::Eigen
         nlohmann_json::nlohmann_json
         refx::refx
@@ -125,18 +125,18 @@ target_compile_features(gps_interface PUBLIC cxx_std_17)
 # ==================== Tests ==========================
 # =====================================================
 if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
+    find_package(ament_cmake_gtest REQUIRED)
 
-  ament_add_gtest(test_localization_node
+    ament_add_gtest(test_localization_node
           test/gtest/test_localization_node.cpp
   )
 
-  target_link_libraries(test_localization_node
+    target_link_libraries(test_localization_node
           localization_node_lib
           mcap
   )
 
-  ament_target_dependencies(test_localization_node
+    ament_target_dependencies(test_localization_node
           rclcpp
           tf2
           tf2_ros
@@ -146,7 +146,7 @@ if(BUILD_TESTING)
           rosbag2_cpp
   )
 
-  target_compile_definitions(test_localization_node PRIVATE
+    target_compile_definitions(test_localization_node PRIVATE
           PACKAGE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 

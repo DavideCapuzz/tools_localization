@@ -1,0 +1,3 @@
+[submodule "libs/OpenIMU"]
+	path = libs/OpenIMU
+	url = https://github.com/bednarzlogan/OpenIMU.git

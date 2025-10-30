@@ -206,7 +206,7 @@ void LocalizationNode::GpsCallBack(
     // make an observable to serve to the filter
     Observable obs_dat;
     MeasVec meas;
-    CovMat R;
+    MeasCov R;
 
     meas << gps_point_transformed.point.x, gps_point_transformed.point.y,
         gps_point_transformed.point.z;

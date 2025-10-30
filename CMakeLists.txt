@@ -37,7 +37,7 @@ find_package(message_filters REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(nlohmann_json REQUIRED)
-find_package(mcap REQUIRED)
+find_package(mcap_vendor REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 # =====================================================
 # =============== Library (implementation) ============
@@ -76,7 +76,7 @@ ament_target_dependencies(localization_node_lib
 )
 
 target_link_libraries(localization_node_lib
-        PUBLIC ukf_core
+        ukf_core
         Eigen3::Eigen
         nlohmann_json::nlohmann_json
         refx::refx
@@ -134,7 +134,7 @@ if(BUILD_TESTING)
 
     target_link_libraries(test_localization_node
           localization_node_lib
-          mcap
+          mcap_vendor::mcap
   )
 
     ament_target_dependencies(test_localization_node

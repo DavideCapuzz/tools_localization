@@ -4,6 +4,7 @@
 // #include "nav_sim/AvoidObsCommon.h"
 #include <algorithm>
 #include <boost/math/special_functions/round.hpp>
+#include <chrono>
 #include <geometry_msgs/msg/point_stamped.h>
 #include <math.h>
 
@@ -22,6 +23,22 @@
  **********************************************************************/
 
 using std::placeholders::_1;
+
+// sleep until the estimator has space in its measurement queues
+bool wait_until_queue_has_space(
+    bool imu, std::chrono::milliseconds timeout,
+    const std::shared_ptr<Estimator> &est) noexcept {
+  using clock = std::chrono::steady_clock;
+  const auto deadline = clock::now() + timeout;
+  auto sleep_ms = std::chrono::milliseconds(10);
+
+  while (clock::now() < deadline) {
+    if (!est->queues_full(imu))
+      return true;
+    std::this_thread::sleep_for(sleep_ms); // backoff
+  }
+  return false; // timeout
+}
 
 // Constructor
 LocalizationNode::LocalizationNode(const rclcpp::NodeOptions &options)
@@ -138,6 +155,13 @@ void LocalizationNode::ImuCallBack(
     imu_data.updateFromMatrix(); // updates helpful double members for
                                  // accelerometer and gyroscope data
 
+    // sleep until the estimator has space in its measurement queues
+    if (!wait_until_queue_has_space(true, std::chrono::milliseconds(600),
+                                    filter_)) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+                           "IMU queue full; dropping sample");
+      return;
+    };
     filter_->read_imu(imu_data);
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());
@@ -219,6 +243,13 @@ void LocalizationNode::GpsCallBack(
     obs_dat.observation = meas;
     obs_dat.R = R;
 
+    // sleep until the estimator has space in its measurement queues
+    if (!wait_until_queue_has_space(false, std::chrono::milliseconds(600),
+                                    filter_)) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+                           "GNSS queue full; dropping sample");
+      return;
+    };
     filter_->read_gps(obs_dat);
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());

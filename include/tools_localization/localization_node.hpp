@@ -92,5 +92,68 @@ private:
   set_oputout(const double x, const double y, const double theta,
               const rclcpp::Time &last_clock_time);
 
+    std::map<std::string, bool> sett_log_;
+  void set_up_debug_log(const YAML::Node& config_log) {
+      rosbag2_storage::StorageOptions storage_options;
+      // storage_options.uri = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";
+      storage_options.uri = config_log["out_file"].as<std::string>();
+      storage_options.storage_id = "mcap";
+
+      rosbag2_cpp::ConverterOptions converter_options;
+      converter_options.input_serialization_format = "cdr";
+      converter_options.output_serialization_format = "cdr";
+
+      writer.open(storage_options, converter_options);
+
+      if (config_log["log_raw_pose"].as<bool>()) {
+        sett_log_.insert({"raw_pose", true});
+        setup_log_topic("/pose_raw", "geometry_msgs/msg/PointStamped");
+      } else {
+        sett_log_.insert({"raw_pose", false});
+      }
+    if (config_log["log_end_pose"].as<bool>()) {
+      sett_log_.insert({"end_pose", true});
+      setup_log_topic("/pose_end", "geometry_msgs/msg/PointStamped");
+    } else {
+      sett_log_.insert({"end_pose", false});
+    }
+
+    }
+
+    void setup_log_topic(const std::string & msg_name, const std::string & topic) {
+      rosbag2_storage::TopicMetadata topic_metadata;
+      topic_metadata.name = msg_name;
+      topic_metadata.type = topic;
+      topic_metadata.serialization_format = "cdr";
+      writer.create_topic(topic_metadata);
+    }
+
+  template<typename T>
+  void save_data(const T & in_data, const std::string & topic_name) {
+    rclcpp::SerializedMessage serialized_msg;
+    rclcpp::Serialization<geometry_msgs::msg::PointStamped> serializer;
+    serializer.serialize_message(&in_data, &serialized_msg);
+
+    // Prepare rosbag message
+    auto bag_message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+    bag_message->topic_name = topic_name;
+    bag_message->recv_timestamp = rclcpp::Clock().now().nanoseconds();
+
+    // Copy serialized buffer
+    auto data = std::make_shared<rcutils_uint8_array_t>();
+    auto src = serialized_msg.get_rcl_serialized_message();
+
+    data->allocator = src.allocator;
+    data->buffer_length = src.buffer_length;
+    data->buffer_capacity = src.buffer_capacity;
+    data->buffer = static_cast<uint8_t *>(malloc(src.buffer_length));
+    memcpy(data->buffer, src.buffer, src.buffer_length);
+
+    bag_message->serialized_data = data;
+
+    // Write the message to the bag
+    writer.write(bag_message);
+  }
+
   FRIEND_TEST(LocalizationNodeTest, Loadmcap);
 };

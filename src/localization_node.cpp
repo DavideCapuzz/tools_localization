@@ -2,19 +2,17 @@
 
 #include "tools_localization/localization_node.hpp"
 // #include "nav_sim/AvoidObsCommon.h"
-#include <algorithm>
-#include <boost/math/special_functions/round.hpp>
-#include <chrono>
 #include <geometry_msgs/msg/point_stamped.h>
 #include <math.h>
+#include <boost/math/special_functions/round.hpp>
+#include <algorithm>
 
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_ros/transform_broadcaster.h"
-#include "ukf_defs.hpp"
 #include <geometry_msgs/msg/point_stamped.hpp>
-#include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+#include <tf2_ros/buffer.h>
 /**********************************************************************
  * Obstacle Avoidance using a nav_msgs/OccupacyGrid and A* path planning
  *
@@ -24,270 +22,184 @@
 
 using std::placeholders::_1;
 
-// sleep until the estimator has space in its measurement queues
-bool wait_until_queue_has_space(
-    bool imu, std::chrono::milliseconds timeout,
-    const std::shared_ptr<Estimator> &est) noexcept {
-  using clock = std::chrono::steady_clock;
-  const auto deadline = clock::now() + timeout;
-  auto sleep_ms = std::chrono::milliseconds(10);
-
-  while (clock::now() < deadline) {
-    if (!est->queues_full(imu))
-      return true;
-    std::this_thread::sleep_for(sleep_ms); // backoff
-  }
-  return false; // timeout
-}
-
 // Constructor
-LocalizationNode::LocalizationNode(const rclcpp::NodeOptions &options)
-    : Node("LocalizationNode", options) {
-  sub_loc_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
-      "/navsat", 10, std::bind(&LocalizationNode::GpsCallBack, this, _1));
-  sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
-      "/imu", 10, std::bind(&LocalizationNode::ImuCallBack, this, _1));
-  sub_slam_ =
-      this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+LocalizationNode::LocalizationNode(const rclcpp::NodeOptions &options) :
+Node("LocalizationNode",options)
+{
+    sub_loc_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
+          "/navsat", 10, std::bind(&LocalizationNode::GpsCallBack, this, _1));
+    sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
+          "/imu", 10, std::bind(&LocalizationNode::ImuCallBack, this, _1));
+    sub_slam_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
           "/pose", 10, std::bind(&LocalizationNode::SlamCallBack, this, _1));
-  sub_twist_ = this->create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel", 10, std::bind(&LocalizationNode::TwistCallBack, this, _1));
-  clock_sub_ = this->create_subscription<rosgraph_msgs::msg::Clock>(
-      "/clock", 10,
-      std::bind(&LocalizationNode::clockCallback, this, std::placeholders::_1));
-  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock(),
-                                                 tf2::durationFromSec(30.0));
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-  tf_brodacaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
-  publisher_odom_ =
-      this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
-  timer_ = this->create_wall_timer(
+    sub_twist_ = this->create_subscription<geometry_msgs::msg::Twist>(
+          "/cmd_vel", 10, std::bind(&LocalizationNode::TwistCallBack, this, _1));
+    clock_sub_ = this->create_subscription<rosgraph_msgs::msg::Clock>(
+         "/clock", 10,
+          std::bind(&LocalizationNode::clockCallback, this, std::placeholders::_1)
+    );
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock(), tf2::durationFromSec(30.0));
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    tf_brodacaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+    publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+    timer_ = this->create_wall_timer(
       50ms, std::bind(&LocalizationNode::timer_callback, this));
 
-  // std::string config_file_path =
-  // this->get_parameter("config_path").as_string();
-  this->declare_parameter("filter_type", "ukf");
-  std::string filter_type = this->get_parameter("filter_type").as_string();
-  YAML::Node config_node;
-
-  // construct filter and start its parser loop in a background thread
-  filter_ = filter_factory(filter_type, config_node);
-  filter_->start_filter(20ms); // filter can now parse data
-
-  rosbag2_storage::StorageOptions storage_options;
-  storage_options.uri = "/home/davide/ros_ws/wheele/src/tools_localization/"
-                        "test/data/result_data/result";
-  storage_options.storage_id = "mcap";
-
-  rosbag2_cpp::ConverterOptions converter_options;
-  converter_options.input_serialization_format = "cdr";
-  converter_options.output_serialization_format = "cdr";
-
-  writer.open(storage_options, converter_options);
-
-  rosbag2_storage::TopicMetadata topic_metadata;
-  topic_metadata.name = "/pose_raw";
-  topic_metadata.type = "geometry_msgs/msg/PointStamped";
-  topic_metadata.serialization_format = "cdr";
-  writer.create_topic(topic_metadata);
+    // std::string config_file_path = this->get_parameter("config_path").as_string();
+    this->declare_parameter("filter_type", "ekf");
+    std::string filter_type = this->get_parameter("filter_type").as_string();
+    YAML::Node config_node;
+    filter_ = filter_factory(filter_type,config_node);
+    YAML::Node config_log;
+    config_log["out_file"] = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";
+    config_log["log_raw_pose"] =  true;
+    config_log["log_end_pose"] =  true;
+    set_up_debug_log(config_log);
 }
 
-LocalizationNode::~LocalizationNode() { writer.close(); }
+LocalizationNode::~LocalizationNode() {
+    writer.close();
+}
 
-void LocalizationNode::timer_callback() {
-  auto state = filter_->get_state();
-  auto [transform, odom] =
-      set_oputout(state[0], state[1], state[2], last_clock_time_);
-  // auto [transform, odom] =
-  //     set_oputout(0,0,0,last_clock_time_);
-  try {
-    RCLCPP_WARN(this->get_logger(), "Transform failed send: %d, %d,%d,%d");
+void LocalizationNode::timer_callback()
+{
+    auto state = filter_->get_state();
+    auto [transform, odom] =
+        set_oputout(state[0],state[1],state[2],last_clock_time_);
+    // auto [transform, odom] =
+    //     set_oputout(0,0,0,last_clock_time_);
+    geometry_msgs::msg::PointStamped gps_point;
+    gps_point.header.stamp = gps_.header.stamp;
+    gps_point.header.frame_id = gps_.header.frame_id;  // ENU frame
+    gps_point.point.x = state[0];
+    gps_point.point.y = state[1];
+    gps_point.point.z = 0;
+
+    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_end");
+
+    try {
+        RCLCPP_WARN(this->get_logger(), "Transform failed send: %d, %d,%d,%d");
     tf_brodacaster_->sendTransform(transform);
-    std::cout << "of " << state[0] << " " << state[1] << " " << state[1]
-              << "\n";
-    std::cout << "ot " << odom.pose.pose.position.x << " "
-              << odom.pose.pose.position.x << " " << odom.pose.pose.position.x
-              << "\n";
-    publisher_odom_->publish(odom);
-  } catch (tf2::TransformException &ex) {
-    RCLCPP_WARN(this->get_logger(), "Transform failed send: %s", ex.what());
-  }
+        std::cout<<"of "<<state[0]<<" "<<state[1]<<" "<<state[1]<<"\n";
+        std::cout<<"ot "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.x<<"\n";
+        publisher_odom_->publish(odom);
+    }
+    catch (tf2::TransformException &ex) {
+        RCLCPP_WARN(this->get_logger(), "Transform failed send: %s", ex.what());
+    }
+
 }
 
-void LocalizationNode::TwistCallBack(
-    const geometry_msgs::msg::Twist::SharedPtr msg_in) {
+void LocalizationNode::TwistCallBack(const geometry_msgs::msg::Twist::SharedPtr msg_in)
+{
   twist_ = *msg_in;
 }
 
-void LocalizationNode::clockCallback(
-    const rosgraph_msgs::msg::Clock::SharedPtr msg) {
-  last_clock_time_ = msg->clock;
+void LocalizationNode::clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg)
+{
+    last_clock_time_ = msg->clock;
 }
 
-void LocalizationNode::ImuCallBack(
-    const sensor_msgs::msg::Imu::SharedPtr msg_in) {
+void LocalizationNode::ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in){
   imu_pose_ = *msg_in;
   imu_pose_.header.frame_id = "imu";
-  geometry_msgs::msg::Vector3Stamped accel_in, accel_out;
-  accel_in.header = imu_pose_.header;
-  accel_in.vector = imu_pose_.linear_acceleration;
-  try {
-    tf_buffer_->transform(accel_in, accel_out, "base_link",
-                          tf2::durationFromSec(0.1));
+    geometry_msgs::msg::Vector3Stamped accel_in, accel_out;
+    accel_in.header = imu_pose_.header;
+    accel_in.vector = imu_pose_.linear_acceleration;
+    try {
+        tf_buffer_->transform(accel_in, accel_out, "base_link", tf2::durationFromSec(0.1));
 
-    geometry_msgs::msg::Vector3Stamped gyro_in, gyro_out;
-    gyro_in.header = imu_pose_.header;
-    gyro_in.vector = imu_pose_.angular_velocity;
+        geometry_msgs::msg::Vector3Stamped gyro_in, gyro_out;
+        gyro_in.header = imu_pose_.header;
+        gyro_in.vector = imu_pose_.angular_velocity;
 
-    tf_buffer_->transform(gyro_in, gyro_out, "base_link",
-                          tf2::durationFromSec(0.1));
-
-    // make an IMU data struct for the filter
-    ImuData imu_data;
-    ControlInput control_input;
-
-    control_input << accel_out.vector.x, accel_out.vector.y, accel_out.vector.z,
-        gyro_out.vector.x, gyro_out.vector.y, gyro_out.vector.z;
-
-    imu_data.measurement_time =
-        imu_pose_.header.stamp.sec + imu_pose_.header.stamp.nanosec * 1e-9;
-    imu_data.matrix_form_measurement = control_input;
-    imu_data.updateFromMatrix(); // updates helpful double members for
-                                 // accelerometer and gyroscope data
-
-    // sleep until the estimator has space in its measurement queues
-    if (!wait_until_queue_has_space(true, std::chrono::milliseconds(600),
-                                    filter_)) {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                           "IMU queue full; dropping sample");
-      return;
-    };
-    filter_->read_imu(imu_data);
-  } catch (tf2::TransformException &ex) {
-    RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());
-  }
+        tf_buffer_->transform(gyro_in, gyro_out, "base_link", tf2::durationFromSec(0.1));
+        Eigen::VectorXd u(6);
+        u << accel_out.vector.x, accel_out.vector.y, accel_out.vector.z,
+            gyro_out.vector.x, gyro_out.vector.y, gyro_out.vector.z;
+        filter_->predict(imu_pose_.header.stamp.sec + imu_pose_.header.stamp.nanosec * 1e-9, u);
+    }
+    catch (tf2::TransformException &ex) {
+        RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());
+    }
 }
 
-void LocalizationNode::GpsCallBack(
-    const sensor_msgs::msg::NavSatFix::SharedPtr msg_in) {
+void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr msg_in){
   gps_ = *msg_in;
-  gps_.header.frame_id = "gps";
-  if (!gps_init_) {
-    // converter_.initialiseReference(gps_.latitude, gps_.longitude,
-    // gps_.altitude);
-    gps_init_ = true;
-    local_gps_origin_ = {41.9028, 12.4964, 50.0}; // Lat/Lon in deg, Alt in m
-  }
-  refx::Coordinate3D<refx::lla> target_gps_point(gps_.latitude, gps_.longitude,
-                                                 gps_.altitude);
+    gps_.header.frame_id = "gps";
+    double sec = gps_.header.stamp.sec + gps_.header.stamp.nanosec;
+    if (!gps_init_) {
+        // converter_.initialiseReference(gps_.latitude, gps_.longitude, gps_.altitude);
+        gps_init_ = true;
+        local_gps_origin_ = {41.9028, 12.4964, 50.0};  // Lat/Lon in deg, Alt in m
+    }
+  refx::Coordinate3D<refx::lla> target_gps_point(gps_.latitude, gps_.longitude, gps_.altitude);
 
-  auto earthmodel = refx::EarthModelWGS84<double>();
+    auto earthmodel = refx::EarthModelWGS84<double>();
 
-  // This performs a runtime projection of the GPS point onto a flat plane at
-  // the origin.
-  refx::Coordinate3D<refx::enu> pose_enu = refx::frame_transform<refx::enu>(
-      target_gps_point, local_gps_origin_, earthmodel);
-  geometry_msgs::msg::PointStamped gps_point;
-  gps_point.header.stamp = gps_.header.stamp;
-  gps_point.header.frame_id = gps_.header.frame_id; // ENU frame
-  gps_point.point.x = pose_enu.x();
-  gps_point.point.y = pose_enu.y();
-  gps_point.point.z = pose_enu.z();
+    // This performs a runtime projection of the GPS point onto a flat plane at the origin.
+  refx::Coordinate3D<refx::enu> pose_enu =
+        refx::frame_transform<refx::enu>(target_gps_point, local_gps_origin_, earthmodel);
+    geometry_msgs::msg::PointStamped gps_point;
+    gps_point.header.stamp = gps_.header.stamp;
+    gps_point.header.frame_id = gps_.header.frame_id;  // ENU frame
+    gps_point.point.x = pose_enu.x();
+    gps_point.point.y = pose_enu.y();
+    gps_point.point.z = pose_enu.z();
 
-  rclcpp::SerializedMessage serialized_msg;
-  rclcpp::Serialization<geometry_msgs::msg::PointStamped> serializer;
-  serializer.serialize_message(&gps_point, &serialized_msg);
+    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_raw");
 
-  // Prepare rosbag message
-  auto bag_message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
-  bag_message->topic_name = "/pose_raw";
-  bag_message->recv_timestamp = rclcpp::Clock().now().nanoseconds();
+    try {
+        geometry_msgs::msg::PointStamped gps_point_transformed = tf_buffer_->transform(
+                gps_point,
+                "base_link",
+                tf2::durationFromSec(0.1)  // timeout
+            );
+        std::cout<<"i "<<gps_point_transformed.point.x<<" "<<gps_point_transformed.point.y<<" "<<gps_point_transformed.point.z<<std::endl;
 
-  // Copy serialized buffer
-  auto data = std::make_shared<rcutils_uint8_array_t>();
-  auto src = serialized_msg.get_rcl_serialized_message();
+        Eigen::VectorXd z(12);
+        z << gps_point_transformed.point.x, gps_point_transformed.point.y, gps_point_transformed.point.z,
+        gps_.position_covariance.at(0), gps_.position_covariance.at(1),gps_.position_covariance.at(2),
+        gps_.position_covariance.at(3), gps_.position_covariance.at(4),gps_.position_covariance.at(5),
+        gps_.position_covariance.at(6), gps_.position_covariance.at(7),gps_.position_covariance.at(8);
+        filter_->update({},z);
+    }
+    catch (tf2::TransformException &ex) {
+        RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());
+    }
 
-  data->allocator = src.allocator;
-  data->buffer_length = src.buffer_length;
-  data->buffer_capacity = src.buffer_capacity;
-  data->buffer = static_cast<uint8_t *>(malloc(src.buffer_length));
-  memcpy(data->buffer, src.buffer, src.buffer_length);
-
-  bag_message->serialized_data = data;
-
-  // Write the message to the bag
-  writer.write(bag_message);
-
-  try {
-    geometry_msgs::msg::PointStamped gps_point_transformed =
-        tf_buffer_->transform(gps_point, "base_link",
-                              tf2::durationFromSec(0.1) // timeout
-        );
-    std::cout << "i " << gps_point_transformed.point.x << " "
-              << gps_point_transformed.point.y << " "
-              << gps_point_transformed.point.z << std::endl;
-
-    // make an observable to serve to the filter
-    Observable obs_dat;
-    MeasVec meas;
-    MeasCov R;
-
-    meas << gps_point_transformed.point.x, gps_point_transformed.point.y,
-        gps_point_transformed.point.z;
-    R << gps_.position_covariance.at(0), gps_.position_covariance.at(1),
-        gps_.position_covariance.at(2), gps_.position_covariance.at(3),
-        gps_.position_covariance.at(4), gps_.position_covariance.at(5),
-        gps_.position_covariance.at(6), gps_.position_covariance.at(7),
-        gps_.position_covariance.at(8);
-
-    obs_dat.observation = meas;
-    obs_dat.R = R;
-
-    // sleep until the estimator has space in its measurement queues
-    if (!wait_until_queue_has_space(false, std::chrono::milliseconds(600),
-                                    filter_)) {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                           "GNSS queue full; dropping sample");
-      return;
-    };
-    filter_->read_gps(obs_dat);
-  } catch (tf2::TransformException &ex) {
-    RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());
-  }
 }
 
-std::tuple<geometry_msgs::msg::TransformStamped, nav_msgs::msg::Odometry>
-LocalizationNode::set_oputout(const double x, const double y,
-                              const double theta,
-                              const rclcpp::Time &last_clock_time) {
+std::tuple<geometry_msgs::msg::TransformStamped, nav_msgs::msg::Odometry> LocalizationNode::set_oputout(
+    const double x, const double y, const double theta, const rclcpp::Time & last_clock_time){
 
-  // --- Convert yaw to quaternion
-  tf2::Quaternion q;
-  q.setRPY(0.0, 0.0, theta);
+    // --- Convert yaw to quaternion
+    tf2::Quaternion q;
+    q.setRPY(0.0, 0.0, theta);
 
-  // --- Create TransformStamped
-  geometry_msgs::msg::TransformStamped transform;
-  transform.header.stamp = last_clock_time;
-  transform.header.frame_id = "odom";
-  transform.child_frame_id = "base_link";
-  transform.transform.translation.x = x;
-  transform.transform.translation.y = y;
-  transform.transform.translation.z = 0.0;
-  transform.transform.rotation = tf2::toMsg(q);
+    // --- Create TransformStamped
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp = last_clock_time;
+    transform.header.frame_id = "odom";
+    transform.child_frame_id = "base_link";
+    transform.transform.translation.x = x;
+    transform.transform.translation.y = y;
+    transform.transform.translation.z = 0.0;
+    transform.transform.rotation = tf2::toMsg(q);
 
-  // --- Create Odometry
-  nav_msgs::msg::Odometry odom;
-  odom.header = transform.header;
-  odom.child_frame_id = transform.child_frame_id;
-  odom.pose.pose.position.x = x;
-  odom.pose.pose.position.y = y;
-  odom.pose.pose.position.z = 0.0;
-  odom.pose.pose.orientation = transform.transform.rotation;
+    // --- Create Odometry
+    nav_msgs::msg::Odometry odom;
+    odom.header = transform.header;
+    odom.child_frame_id = transform.child_frame_id;
+    odom.pose.pose.position.x = x;
+    odom.pose.pose.position.y = y;
+    odom.pose.pose.position.z = 0.0;
+    odom.pose.pose.orientation = transform.transform.rotation;
 
-  return {transform, odom};
+    return {transform, odom};
 }
 
-void LocalizationNode::SlamCallBack(
-    const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in) {
+void LocalizationNode::SlamCallBack(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg_in)
+{
   slam_pose_ = *msg_in;
 }

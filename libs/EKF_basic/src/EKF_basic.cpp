@@ -1,4 +1,4 @@
-#include "ekf_basic.hpp"
+#include "EKF_basic/EKF_basic.hpp"
 
 void ExtendedKalmanFilter::initialize(const Eigen::Vector3d& x, double xy_obs_noise_std, double yaw_rate_noise_std, double forward_velocity_noise_std, double initial_yaw_std){
     x_ = Eigen::Vector3d(x);
@@ -61,10 +61,10 @@ void ExtendedKalmanFilter::propagate(const Eigen::Vector2d& u, double dt) {
 }
 
 
-const Eigen::Vector3d& ExtendedKalmanFilter::getState() const {
+const Eigen::Vector3d ExtendedKalmanFilter::getState() const {
     return x_;
 }
 
-const Eigen::Matrix3d& ExtendedKalmanFilter::getCovariance() const {
+const Eigen::Matrix3d ExtendedKalmanFilter::getCovariance() const {
     return P_;
 }

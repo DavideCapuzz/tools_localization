@@ -74,7 +74,7 @@ private:
   void clockCallback(const rosgraph_msgs::msg::Clock::SharedPtr msg);
   void timer_callback();
 
-  std::shared_ptr<Estimator> filter_;
+  std::shared_ptr<FilterBase> filter_;
 
   rclcpp::Time last_clock_time_;
   rclcpp::TimerBase::SharedPtr timer_;
@@ -117,6 +117,18 @@ private:
     } else {
       sett_log_.insert({"end_pose", false});
     }
+    if (config_log["log_acc_transformed"].as<bool>()) {
+      sett_log_.insert({"acc_transformed", true});
+      setup_log_topic("/acc_transformed", "geometry_msgs/msg/Vector3Stamped");
+    } else {
+      sett_log_.insert({"acc_transformed", false});
+    }
+    if (config_log["log_gyro_transformed"].as<bool>()) {
+      sett_log_.insert({"gyro_transformed", true});
+      setup_log_topic("/gyro_transformed", "geometry_msgs/msg/Vector3Stamped");
+    } else {
+      sett_log_.insert({"gyro_transformed", false});
+    }
 
     }
 
@@ -129,13 +141,13 @@ private:
     }
 
   template<typename T>
-  void save_data(const T & in_data, const std::string & topic_name) {
+  void save_data(const T & in_data, const std::string & topic_name, const rclcpp::Time & time) {
     rclcpp::SerializedMessage serialized_msg;
-    rclcpp::Serialization<geometry_msgs::msg::PointStamped> serializer;
+    const rclcpp::Serialization<geometry_msgs::msg::PointStamped> serializer;
     serializer.serialize_message(&in_data, &serialized_msg);
 
     // Prepare rosbag message
-    auto bag_message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
+    const auto bag_message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
     bag_message->topic_name = topic_name;
     bag_message->recv_timestamp = rclcpp::Clock().now().nanoseconds();
 

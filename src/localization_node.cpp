@@ -46,7 +46,7 @@ Node("LocalizationNode",options)
       50ms, std::bind(&LocalizationNode::timer_callback, this));
 
     // std::string config_file_path = this->get_parameter("config_path").as_string();
-    this->declare_parameter("filter_type", "ekf");
+    this->declare_parameter("filter_type", "ukf");
     std::string filter_type = this->get_parameter("filter_type").as_string();
     YAML::Node config_node;
     filter_ = filter_factory(filter_type,config_node);
@@ -54,6 +54,8 @@ Node("LocalizationNode",options)
     config_log["out_file"] = "/home/davide/ros_ws/wheele/src/tools_localization/test/data/result_data/result";
     config_log["log_raw_pose"] =  true;
     config_log["log_end_pose"] =  true;
+    config_log["log_acc_transformed"] =  true;
+    config_log["log_gyro_transformed"] =  true;
     set_up_debug_log(config_log);
 }
 
@@ -75,7 +77,7 @@ void LocalizationNode::timer_callback()
     gps_point.point.y = state[1];
     gps_point.point.z = 0;
 
-    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_end");
+    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_end", gps_.header.stamp);
 
     try {
         RCLCPP_WARN(this->get_logger(), "Transform failed send: %d, %d,%d,%d");
@@ -117,6 +119,12 @@ void LocalizationNode::ImuCallBack(const sensor_msgs::msg::Imu::SharedPtr msg_in
         Eigen::VectorXd u(6);
         u << accel_out.vector.x, accel_out.vector.y, accel_out.vector.z,
             gyro_out.vector.x, gyro_out.vector.y, gyro_out.vector.z;
+        // sensor_msgs::msg::Imu imu_log;
+        // imu_log = imu_pose_;
+        // imu_log.linear_acceleration = accel_out.vector;
+        // imu_log.angular_velocity = gyro_out.vector;
+        save_data<geometry_msgs::msg::Vector3Stamped>(accel_out, "/acc_transformed", imu_pose_.header.stamp);
+        save_data<geometry_msgs::msg::Vector3Stamped>(gyro_out, "/gyro_transformed", imu_pose_.header.stamp);
         filter_->predict(imu_pose_.header.stamp.sec + imu_pose_.header.stamp.nanosec * 1e-9, u);
     }
     catch (tf2::TransformException &ex) {
@@ -131,7 +139,7 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
     if (!gps_init_) {
         // converter_.initialiseReference(gps_.latitude, gps_.longitude, gps_.altitude);
         gps_init_ = true;
-        local_gps_origin_ = {41.9028, 12.4964, 50.0};  // Lat/Lon in deg, Alt in m
+        local_gps_origin_ = {gps_.latitude, gps_.longitude, gps_.altitude};  // Lat/Lon in deg, Alt in m
     }
   refx::Coordinate3D<refx::lla> target_gps_point(gps_.latitude, gps_.longitude, gps_.altitude);
 
@@ -147,7 +155,7 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
     gps_point.point.y = pose_enu.y();
     gps_point.point.z = pose_enu.z();
 
-    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_raw");
+    save_data<geometry_msgs::msg::PointStamped>(gps_point, "/pose_raw", gps_.header.stamp);
 
     try {
         geometry_msgs::msg::PointStamped gps_point_transformed = tf_buffer_->transform(
@@ -162,7 +170,7 @@ void LocalizationNode::GpsCallBack(const sensor_msgs::msg::NavSatFix::SharedPtr 
         gps_.position_covariance.at(0), gps_.position_covariance.at(1),gps_.position_covariance.at(2),
         gps_.position_covariance.at(3), gps_.position_covariance.at(4),gps_.position_covariance.at(5),
         gps_.position_covariance.at(6), gps_.position_covariance.at(7),gps_.position_covariance.at(8);
-        filter_->update({},z);
+        filter_->update(gps_.header.stamp.sec + gps_.header.stamp.nanosec * 1e-9,z);
     }
     catch (tf2::TransformException &ex) {
         RCLCPP_WARN(this->get_logger(), "Transform failed: %s", ex.what());

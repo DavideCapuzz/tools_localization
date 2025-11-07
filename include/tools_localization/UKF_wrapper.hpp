@@ -90,6 +90,7 @@ public:
 
     obs_dat.observation = meas;
     obs_dat.R = R;
+    obs_dat.timestamp = time;
 
     // sleep until the estimator has space in its measurement queues
     if (!wait_until_queue_has_space(false, std::chrono::milliseconds(600),

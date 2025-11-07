@@ -56,7 +56,7 @@ protected:
         std::filesystem::remove_all(pkg_share_ + "/test/data/result_data/result");
         rclcpp::NodeOptions options;
         options.parameter_overrides({
-          rclcpp::Parameter("filter_type", "ukf")
+          rclcpp::Parameter("filter_type", "loggerTest")
         });
 
         node_ = std::make_shared<LocalizationNode>(options);

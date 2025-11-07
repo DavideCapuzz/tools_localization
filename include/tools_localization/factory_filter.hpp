@@ -9,6 +9,7 @@
 #include <memory>
 #include "UKF_wrapper.hpp"
 #include "EKF_basic_wrapper.hpp"
+#include "logger_test.hpp"
 
 inline std::shared_ptr<FilterBase> filter_factory(const std::string &type, YAML::Node& config_node)
 {
@@ -18,6 +19,9 @@ inline std::shared_ptr<FilterBase> filter_factory(const std::string &type, YAML:
     } else if (type == "ekf_basic") {
         config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
         return std::make_shared<EKF>(config_node);
+    } else if (type == "loggerTest") {
+        config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+        return std::make_shared<LoggerTest>(config_node);
     } else {
         throw std::runtime_error("Unknown filter type: " + type);
     }

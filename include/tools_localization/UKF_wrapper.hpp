@@ -51,7 +51,7 @@ public:
     ImuData imu_data;
     ControlInput control_input;
 
-    control_input = u;
+    control_input << u[3], u[4], u[5], u[0], u[1], u[2];
 
     imu_data.measurement_time = time;
     imu_data.matrix_form_measurement = control_input;

@@ -167,7 +167,7 @@ void Ublox::read_gga(const std::string & msg)
         {
           if (token.compare("")!=0)
           {
-            hdop = std::stoi(token);
+            hdop = std::stof(token);
           }
         }
         break;

@@ -67,7 +67,7 @@ void LocalizationNode::timer_callback()
 {
     auto state = filter_->get_state();
     auto [transform, odom] =
-        set_oputout(state[0],state[1],state[2],last_clock_time_);
+        set_oputout(state[0],state[1],state[9],last_clock_time_);
     // auto [transform, odom] =
     //     set_oputout(0,0,0,last_clock_time_);
     geometry_msgs::msg::PointStamped gps_point;
@@ -82,8 +82,8 @@ void LocalizationNode::timer_callback()
     try {
         RCLCPP_WARN(this->get_logger(), "Transform failed send: %d, %d,%d,%d");
     tf_brodacaster_->sendTransform(transform);
-        std::cout<<"of "<<state[0]<<" "<<state[1]<<" "<<state[2]<<"\n";
-        std::cout<<"ot "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.y<<" "<<odom.pose.pose.position.x<<"\n";
+        std::cout<<"of "<<state[0]<<" "<<state[1]<<" "<<state[9]<<"\n";
+        std::cout<<"ot "<<odom.pose.pose.position.x<<" "<<odom.pose.pose.position.y<<"\n";
         publisher_odom_->publish(odom);
     }
     catch (tf2::TransformException &ex) {

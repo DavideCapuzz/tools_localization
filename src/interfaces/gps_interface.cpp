@@ -78,7 +78,7 @@ void GPSCapturer::captureLoop(){
         gps_out_.altitude = M8_Gps.altitude;
         gps_out_.latitude = M8_Gps.latitude;
         gps_out_.longitude = M8_Gps.longitude; 
-        // std::cout<<" alt "<< M8_Gps.altitude<<" lat "<< M8_Gps.latitude<<" lon "<< M8_Gps.longitude<<" sts "<< M8_Gps.sats_in_use<<"\n";
+        std::cout<<" alt "<< M8_Gps.altitude<<" lat "<< M8_Gps.latitude<<" lon "<< M8_Gps.longitude<<" sts "<< M8_Gps.sats_in_use<<"\n";
       }
       buf.clear();
     }

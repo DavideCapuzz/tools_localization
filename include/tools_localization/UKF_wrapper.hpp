@@ -51,7 +51,8 @@ public:
     ImuData imu_data;
     ControlInput control_input;
 
-    control_input << u[3], u[4], u[5], u[0], u[1], u[2];
+    // control_input << u[0], u[1], 0, u[3], u[4], u[5];
+    control_input << u[3], u[4], u[5], u[0], u[1], 0;
 
     imu_data.measurement_time = time;
     imu_data.matrix_form_measurement = control_input;
@@ -59,13 +60,13 @@ public:
     // accelerometer and gyroscope data
 
     // sleep until the estimator has space in its measurement queues
-    if (!wait_until_queue_has_space(true, std::chrono::milliseconds(600),
-                                    ukf_)) {
-      std::cout<<"IMU queue full; dropping sample\n";
-      /*RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                           "IMU queue full; dropping sample");*/
-      return;
-                                    };
+    // if (!wait_until_queue_has_space(true, std::chrono::milliseconds(600),
+    //                                 ukf_)) {
+    //   std::cout<<"IMU queue full; dropping sample\n";
+    //   /*RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+    //                        "IMU queue full; dropping sample");*/
+    //   return;
+    //                                 };
     ukf_->read_imu(imu_data);
   }
 
@@ -87,19 +88,19 @@ public:
 
     meas << z[0], z[1], z[2];
     R << z[3], z[4], z[5], z[6], z[7], z[8], z[9], z[10], z[11];
-
+    R.diagonal().array() += 1;
     obs_dat.observation = meas;
     obs_dat.R = R;
     obs_dat.timestamp = time;
 
     // sleep until the estimator has space in its measurement queues
-    if (!wait_until_queue_has_space(false, std::chrono::milliseconds(600),
-                                    ukf_)) {
-      std::cout<<"GNSS queue full; dropping sample\n";
-      /*RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                           "GNSS queue full; dropping sample");*/
-      return;
-                                    };
+    // if (!wait_until_queue_has_space(false, std::chrono::milliseconds(600),
+    //                                 ukf_)) {
+    //   std::cout<<"GNSS queue full; dropping sample\n";
+    //   /*RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+    //                        "GNSS queue full; dropping sample");*/
+    //   return;
+    //                                 };
     ukf_->read_gps(obs_dat);
   }
   Eigen::VectorXd get_state() override { return ukf_->get_state(); }

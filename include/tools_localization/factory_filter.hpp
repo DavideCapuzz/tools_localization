@@ -14,7 +14,7 @@
 inline std::shared_ptr<FilterBase> filter_factory(const std::string &type, YAML::Node& config_node)
 {
     if (type == "ukf") {
-        config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+        config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/libs/OpenIMU/cpp_source/config/system_constants.json";
         return std::make_shared<UKFwrapper>(config_node);
     } else if (type == "ekf_basic") {
         config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";

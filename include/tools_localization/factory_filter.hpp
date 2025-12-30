@@ -14,13 +14,13 @@
 inline std::shared_ptr<FilterBase> filter_factory(const std::string &type, YAML::Node& config_node)
 {
     if (type == "ukf") {
-        config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/libs/OpenIMU/cpp_source/config/system_constants.json";
+        config_node["config_file_path"] = "/home/ubuntu/ros_ws/src/tools_localization/libs/OpenIMU/cpp_source/config/system_constants.json";
         return std::make_shared<UKFwrapper>(config_node);
     } else if (type == "ekf_basic") {
-        config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+        config_node["config_file_path"] = "/home/ubuntu/ros_ws/src/tools_localization/config/config.json";
         return std::make_shared<EKF>(config_node);
     } else if (type == "loggerTest") {
-        config_node["config_file_path"] = "/home/davide/ros_ws/wheele/src/tools_localization/config/config.json";
+        config_node["config_file_path"] = "/home/ubuntu/ros_ws/src/tools_localization/config/config.json";
         return std::make_shared<LoggerTest>(config_node);
     } else {
         throw std::runtime_error("Unknown filter type: " + type);

@@ -38,7 +38,7 @@ find_package(message_filters REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(nlohmann_json REQUIRED)
-find_package(mcap REQUIRED)
+#find_package(mcap REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 # =====================================================
 # =============== Library (implementation) ============
@@ -136,7 +136,7 @@ if(BUILD_TESTING)
 
   target_link_libraries(test_localization_node
           localization_node_lib
-          mcap
+#          mcap
   )
 
   ament_target_dependencies(test_localization_node
